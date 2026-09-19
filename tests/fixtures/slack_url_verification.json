@@ -1,0 +1,6 @@
+{
+  "token": "fixture-token-not-a-secret",
+  "challenge": "fixture-challenge",
+  "type": "url_verification"
+}
+
