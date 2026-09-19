@@ -1,0 +1,16 @@
+{
+  "token": "fixture-token-not-a-secret",
+  "team_id": "T_FIXTURE",
+  "api_app_id": "A_FIXTURE",
+  "event": {
+    "type": "app_mention",
+    "user": "U_FIXTURE",
+    "text": "<@B_FIXTURE> 정산 배치 처리 방법은?",
+    "ts": "1710000000.000100",
+    "channel": "C_FIXTURE",
+    "event_ts": "1710000000.000100"
+  },
+  "type": "event_callback",
+  "event_id": "Ev_FIXTURE",
+  "event_time": 1710000000
+}
