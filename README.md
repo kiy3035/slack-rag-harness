@@ -40,7 +40,7 @@ RabbitMQ에는 `rag_harness.jobs`, `rag_harness.jobs.retry`, `rag_harness.jobs.d
 
 ## 문서 적재와 검색
 
-`knowledge/manuals`의 가상 운영 매뉴얼 6개를 제목·문단 기준으로 분할하고, 로컬 Ollama의 `nomic-embed-text` 임베딩을 PostgreSQL `vector(768)`에 저장한다. 같은 문서 원문은 재적재하지 않으며 변경 원문은 버전을 올리고 기존 Chunk를 원자적으로 교체한다.
+`knowledge/manuals`의 가상 운영 매뉴얼 6개를 제목·문단 기준으로 분할하고, 로컬 Ollama의 `nomic-embed-text` 임베딩을 PostgreSQL `vector(768)`에 저장한다. Nomic 검색 계약에 따라 문서에는 `search_document:`, 질문에는 `search_query:` 접두어를 적용한다. 같은 문서 원문과 임베딩 설정은 재적재하지 않으며 내용·모델·접두어가 바뀌면 버전을 올리고 기존 Chunk를 원자적으로 교체한다.
 
 ```powershell
 ollama pull nomic-embed-text

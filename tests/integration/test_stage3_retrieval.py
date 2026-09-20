@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.retrieval.chunker import MarkdownChunker
+from app.retrieval.embedding import EmbeddingTask
 from app.retrieval.loader import load_markdown_documents
 from app.retrieval.repository import KnowledgeRepository
 from app.retrieval.service import DocumentIngestionService, KnowledgeSearchService
@@ -26,11 +27,19 @@ KEYWORD_GROUPS = (
 class KeywordEmbeddingClient:
     """의미 범주를 고정 축에 투영해 pgvector 검색을 재현 가능하게 검증한다."""
 
-    def __init__(self) -> None:
+    def __init__(self, fingerprint: str = "keyword-test-v1") -> None:
         """동일 문서 재적재 시 외부 호출 생략 여부를 셀 수 있게 초기화한다."""
         self.call_count = 0
+        self._fingerprint = fingerprint
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    @property
+    def index_fingerprint(self) -> str:
+        """테스트 벡터화 규칙 변경을 구분하는 고정 식별자를 반환한다."""
+        return self._fingerprint
+
+    async def embed(
+        self, texts: Sequence[str], task: EmbeddingTask
+    ) -> list[list[float]]:
         """가상 매뉴얼의 핵심어 빈도를 768차원 로컬 벡터로 변환한다."""
         self.call_count += 1
         return [self._vectorize(value) for value in texts]
@@ -83,6 +92,9 @@ async def test_reingestion_is_idempotent_and_replaces_changed_version(
     second = await ingestion.ingest(document)
     changed = document.model_copy(update={"content": document.content + "\n\n추가 검증 절차."})
     third = await ingestion.ingest(changed)
+    reconfigured_client = KeywordEmbeddingClient(fingerprint="keyword-test-v2")
+    reconfigured_ingestion, _ = build_services(clean_database, reconfigured_client)
+    fourth = await reconfigured_ingestion.ingest(changed)
 
     assert first.changed is True
     assert second.changed is False
@@ -91,6 +103,9 @@ async def test_reingestion_is_idempotent_and_replaces_changed_version(
     assert third.changed is True
     assert third.version == 2
     assert embedding_client.call_count == 2
+    assert fourth.changed is True
+    assert fourth.version == 3
+    assert reconfigured_client.call_count == 1
 
     async with clean_database.connect() as connection:
         row = (
@@ -103,8 +118,8 @@ async def test_reingestion_is_idempotent_and_replaces_changed_version(
                 {"document_id": first.document_id},
             )
         ).mappings().one()
-    assert row["count"] == third.chunk_count
-    assert row["min_version"] == row["max_version"] == 2
+    assert row["count"] == fourth.chunk_count
+    assert row["min_version"] == row["max_version"] == 3
 
 
 @pytest.mark.integration

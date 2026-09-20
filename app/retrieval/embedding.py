@@ -1,5 +1,6 @@
 import math
 from collections.abc import Sequence
+from enum import Enum
 from typing import Protocol
 
 import httpx
@@ -20,11 +21,25 @@ class EmbeddingResponseError(EmbeddingError):
     """Ollama 응답이 계약이나 기대 차원을 위반했음을 나타낸다."""
 
 
+class EmbeddingTask(str, Enum):
+    """Nomic 모델이 문서와 질문을 서로 다른 검색 공간에 배치하도록 구분한다."""
+
+    DOCUMENT = "search_document"
+    QUERY = "search_query"
+
+
 class EmbeddingClient(Protocol):
     """실제 Ollama와 테스트 Fake가 공유하는 임베딩 경계다."""
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        """입력 순서를 보존한 임베딩 목록을 생성한다."""
+    @property
+    def index_fingerprint(self) -> str:
+        """모델이나 전처리 변경 시 기존 문서를 다시 적재할 식별자를 반환한다."""
+        ...
+
+    async def embed(
+        self, texts: Sequence[str], task: EmbeddingTask
+    ) -> list[list[float]]:
+        """작업 유형을 반영하고 입력 순서를 보존한 임베딩 목록을 생성한다."""
         ...
 
 
@@ -38,18 +53,36 @@ class OllamaEmbeddingClient:
         dimensions: int,
         timeout_seconds: float,
         client: httpx.AsyncClient | None = None,
+        document_prefix: str = "search_document: ",
+        query_prefix: str = "search_query: ",
     ) -> None:
         """연결 설정과 테스트에서 교체 가능한 HTTP Client를 주입받는다."""
         self._model = model
         self._dimensions = dimensions
+        self._prefixes = {
+            EmbeddingTask.DOCUMENT: document_prefix,
+            EmbeddingTask.QUERY: query_prefix,
+        }
+        self._index_fingerprint = f"{model}|{document_prefix}|{query_prefix}"
         self._client = client or httpx.AsyncClient(
             base_url=base_url.rstrip("/"), timeout=timeout_seconds
         )
         self._owns_client = client is None
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    @property
+    def index_fingerprint(self) -> str:
+        """현재 모델과 Nomic 검색 접두어 조합을 재적재 식별자로 반환한다."""
+        return self._index_fingerprint
+
+    async def embed(
+        self, texts: Sequence[str], task: EmbeddingTask
+    ) -> list[list[float]]:
         """Ollama 응답의 개수·차원·유한값을 검증해 임베딩만 반환한다."""
-        request = OllamaEmbedRequest(model=self._model, input=list(texts))
+        prefix = self._prefixes[task]
+        request = OllamaEmbedRequest(
+            model=self._model,
+            input=[f"{prefix}{text}" for text in texts],
+        )
         try:
             response = await self._client.post("/api/embed", json=request.model_dump())
             response.raise_for_status()

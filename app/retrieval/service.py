@@ -3,7 +3,7 @@ import math
 from collections.abc import Sequence
 
 from app.retrieval.chunker import MarkdownChunker
-from app.retrieval.embedding import EmbeddingClient, EmbeddingResponseError
+from app.retrieval.embedding import EmbeddingClient, EmbeddingResponseError, EmbeddingTask
 from app.retrieval.repository import KnowledgeRepository
 from app.retrieval.schemas import EmbeddedChunk, IngestionResult, MarkdownDocument, SearchHit
 
@@ -27,7 +27,10 @@ class DocumentIngestionService:
     async def ingest(self, document: MarkdownDocument) -> IngestionResult:
         """동일 원문은 호출을 생략하고 변경된 문서만 새 버전으로 적재한다."""
         normalized_content = document.content.replace("\r\n", "\n").replace("\r", "\n").strip()
-        hash_input = f"{document.title}\0{normalized_content}"
+        hash_input = (
+            f"{self._embedding_client.index_fingerprint}\0"
+            f"{document.title}\0{normalized_content}"
+        )
         content_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
         current = await self._repository.get_document_state(document.source_path)
         if current is not None and current.content_hash == content_hash:
@@ -39,7 +42,9 @@ class DocumentIngestionService:
             )
 
         chunks = self._chunker.split(normalized_content)
-        embeddings = await self._embedding_client.embed([chunk.content for chunk in chunks])
+        embeddings = await self._embedding_client.embed(
+            [chunk.content for chunk in chunks], EmbeddingTask.DOCUMENT
+        )
         self._validate_embeddings(embeddings, len(chunks))
         embedded_chunks = [
             EmbeddedChunk(**chunk.model_dump(), embedding=embedding)
@@ -87,7 +92,7 @@ class KnowledgeSearchService:
         normalized = " ".join(question.split())
         if not normalized:
             raise ValueError("검색 질문은 비어 있을 수 없습니다.")
-        embeddings = await self._embedding_client.embed([normalized])
+        embeddings = await self._embedding_client.embed([normalized], EmbeddingTask.QUERY)
         if (
             len(embeddings) != 1
             or len(embeddings[0]) != self._embedding_dimensions

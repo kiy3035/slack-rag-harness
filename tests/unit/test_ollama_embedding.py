@@ -1,8 +1,11 @@
+import json
+
 import httpx
 import pytest
 
 from app.retrieval.embedding import (
     EmbeddingResponseError,
+    EmbeddingTask,
     EmbeddingTimeoutError,
     OllamaEmbeddingClient,
 )
@@ -10,6 +13,8 @@ from app.retrieval.embedding import (
 
 def valid_embedding_response(request: httpx.Request) -> httpx.Response:
     """정상 Ollama 계약을 재현하는 3차원 응답을 반환한다."""
+    payload = json.loads(request.content)
+    assert payload["input"] == ["search_query: 질문"]
     return httpx.Response(200, json={"embeddings": [[0.1, 0.2, 0.3]]}, request=request)
 
 
@@ -37,7 +42,7 @@ async def test_ollama_embedding_client_returns_validated_vectors() -> None:
             client=http_client,
         )
 
-        assert await client.embed(["질문"]) == [[0.1, 0.2, 0.3]]
+        assert await client.embed(["질문"], EmbeddingTask.QUERY) == [[0.1, 0.2, 0.3]]
 
 
 async def test_ollama_embedding_client_classifies_timeout() -> None:
@@ -55,7 +60,7 @@ async def test_ollama_embedding_client_classifies_timeout() -> None:
         )
 
         with pytest.raises(EmbeddingTimeoutError, match="초과"):
-            await client.embed(["질문"])
+            await client.embed(["질문"], EmbeddingTask.QUERY)
 
 
 async def test_ollama_embedding_client_rejects_malformed_response() -> None:
@@ -73,5 +78,4 @@ async def test_ollama_embedding_client_rejects_malformed_response() -> None:
         )
 
         with pytest.raises(EmbeddingResponseError, match="형식"):
-            await client.embed(["질문"])
-
+            await client.embed(["질문"], EmbeddingTask.QUERY)
