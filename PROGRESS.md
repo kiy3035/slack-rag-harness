@@ -380,3 +380,87 @@ docker compose up --build -d api outbox-publisher
 - 이후 테스트는 별도 `rag_harness_test` DB만 초기화하므로 개발 DB의 실제 임베딩을 삭제하지 않는다.
 - 전체 테스트 직후 실제 쿼리 결과: 개발 DB `6 documents / 24 chunks`, 테스트 DB `0 documents / 0 chunks`.
 - 유료 API나 외부 Embedding 서비스는 사용하지 않았다.
+
+## 2026-09-20 — 4단계 완료
+
+### 현재 단계
+
+- 0단계 환경과 뼈대: 완료
+- 1단계 작업 접수와 멱등성: 완료
+- 2단계 Outbox와 RabbitMQ: 완료
+- 3단계 문서 적재와 검색: 완료
+- 4단계 LangGraph 기본 Workflow: 완료
+- 5단계 이후: 미구현(사용자 요청 범위 밖)
+
+### 설계 경계와 요구사항 보정
+
+- LangGraph 상태에는 직렬화 가능한 도메인 값만 저장하고 DB Session, HTTP Client, 검색·생성 Client는 노드 객체에 주입했다.
+- 4단계 검증 조건과 AI 하네스 규칙을 만족하려고 이번 검색의 `(document_id, chunk_id)` 집합 밖 인용을 거부하는 최소 검사를 포함했다.
+- 관련성 재판정, 검색어 재작성, 재생성 제한, 인용 영속화, `review_queue`, 승인·반려 API는 로드맵 5단계이므로 구현하지 않았다.
+- PostgreSQL Checkpoint는 같은 `thread_id`의 완료된 노드를 건너뛰고 실패한 노드부터 재개한다.
+- Worker 프로세스 강제 종료 후 RabbitMQ 재전달을 자동 재선점하는 정책은 `PROCESSING` Lease·오류 분류가 필요한 6단계다. 4단계에서는 새 Worker 인스턴스와 새 Checkpointer 연결이 같은 그래프 실행을 재개하는 경계를 검증했다.
+
+### 완료 항목
+
+- `WorkflowState`, 입력·의도·답변 Pydantic Schema와 의도·위험 Enum
+- 입력 검증, 구조화 의도 분류, pgvector 검색, 구조화 답변 생성 LangGraph 노드
+- 위험 질문 조기 종료와 검색 근거 없음의 `REVIEW_REQUIRED` 안전 응답
+- Ollama `/api/generate` JSON Schema 요청, 비스트리밍 완료 검증, timeout·HTTP·출력 계약 오류 구분
+- 검색 Chunk만 포함하는 중앙 Prompt와 허용 인용 ID 검사
+- `AsyncPostgresSaver` 연결, 설정 URL 변환, strict msgpack 설정
+- 같은 `thread_id` Checkpoint를 이용한 새 실행·재개·완료 결과 재사용
+- `PROCESSING -> COMPLETED/REVIEW_REQUIRED` 조건부 DB 상태 전이와 결과 답변 저장
+- RabbitMQ Consumer와 Workflow Handler를 연결한 상시 `worker` Compose 서비스
+- 노드별 시작·완료·실패, `job_id`, `thread_id`, 수행 시간 구조 로그
+- 실행·모델 준비·재개 범위·후속 단계 경계를 `docs/WORKFLOW.md`에 기록
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test
+최종 결과: 55 passed in 1.99s
+
+docker compose --profile test run --rm --no-deps test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm --no-deps test python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+검증 범위:
+
+- 정상: 구조화 의도·답변, 실제 PostgreSQL/pgvector 검색, 네 노드 완료, 실제 검색 Chunk ID 인용, DB 완료 상태
+- 경계: 공백·최대 길이 초과 입력, 완료 Checkpoint 재사용, 검색 근거 없음의 검토 전환
+- 실패: Ollama timeout, 잘못된 구조화 출력, 검색 집합 밖 인용 차단, 노드 실패 로그
+- Checkpoint: 네 노드 상태가 실제 PostgreSQL 기록에 남는지 확인
+- 재개: 생성 노드 실패 후 Checkpointer 연결과 그래프를 새로 만들어 같은 작업 재개, 의도 분류·검색은 반복하지 않고 생성만 재실행
+- 회귀: 0~3단계 Slack 서명, 멱등 저장, Outbox, 실제 RabbitMQ, 문서 적재·검색 테스트 포함 전체 55건 통과
+
+### 해결한 검증 이슈
+
+- 최초 LangGraph PostgreSQL 통합 테스트 수집 시 slim 이미지에 시스템 `libpq`가 없어 Psycopg를 불러오지 못했다. 무료 오픈소스 `psycopg[binary]` 3.3.6을 직접·잠금 의존성에 고정하고 재실행했다.
+- 첫 전체 실행에서 통합 테스트가 Markdown Loader에 문자열 경로를 넘겨 2건 실패했다. 계약대로 `Path`를 사용하도록 수정한 뒤 새 통합 테스트 2건과 전체 55건을 재실행해 통과했다.
+
+### 실제 환경 확인
+
+- 개발 DB의 실제 Nomic 적재 데이터: `6 documents / 24 chunks` 유지
+- 테스트 DB 정리 상태: `0 documents / 0 chunks / 0 checkpoints`
+- 실행 중 서비스: API·PostgreSQL·RabbitMQ healthy, Outbox Publisher running
+- Ollama 설치 모델: `nomic-embed-text:latest` 한 개, 768차원 Embedding 기능 확인
+
+### 남은 제한 사항
+
+- 기본 생성 모델 `qwen3:1.7b`가 로컬 Ollama에 아직 설치되지 않아 실제 생성 모델 E2E는 실행하지 않았다. 자동 테스트는 HTTP Mock과 결정적 Fake 모델로 정상·경계·실패 계약을 검증했다.
+- 답변 조회 API와 실제 Slack Thread 발신은 후속 단계 범위다. 현재 답변은 `ai_job.result_answer`에 저장한다.
+- `REVIEW_REQUIRED` 상태는 남기지만 검토 Queue와 사람 승인 흐름은 5단계 범위다.
+- 강제 종료 후 `PROCESSING` 작업의 RabbitMQ 자동 재선점, 오류 분류, 제한 재시도와 DLQ 정책 연결은 6단계 범위다.
+
+### 다음 작업
+
+사용자 확인 후에만 5단계 검증·재검색·사람 검토를 구현한다.
