@@ -17,7 +17,8 @@ async def clean_database() -> AsyncIterator[AsyncEngine]:
         await _truncate_checkpoint_tables(connection)
         await connection.execute(
             text(
-                "TRUNCATE TABLE knowledge_chunk, knowledge_document, "
+                "TRUNCATE TABLE answer_citation, review_queue, "
+                "knowledge_chunk, knowledge_document, "
                 "job_outbox, ai_job CASCADE"
             )
         )
@@ -28,7 +29,8 @@ async def clean_database() -> AsyncIterator[AsyncEngine]:
             await _truncate_checkpoint_tables(connection)
             await connection.execute(
                 text(
-                    "TRUNCATE TABLE knowledge_chunk, knowledge_document, "
+                    "TRUNCATE TABLE answer_citation, review_queue, "
+                    "knowledge_chunk, knowledge_document, "
                     "job_outbox, ai_job CASCADE"
                 )
             )

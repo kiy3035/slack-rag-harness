@@ -44,6 +44,14 @@ def valid_model_response(request: httpx.Request) -> httpx.Response:
             "risk_level": "LOW",
             "reason": "운영 절차 질문",
         }
+    elif "의미적 관련성" in payload["system"]:
+        output = {
+            "relevant_chunk_ids": [str(CHUNK_ID)],
+            "conflict_detected": False,
+            "reason": "질문을 직접 설명하는 Chunk",
+        }
+    elif "재작성" in payload["system"]:
+        output = {"query": "정산 승인 절차"}
     else:
         output = {
             "answer": "승인 후 순서대로 처리합니다.",
@@ -89,10 +97,14 @@ async def test_ollama_model_validates_intent_and_answer_schema() -> None:
         )
         intent = await client.classify_intent("정산 절차는?")
         answer = await client.generate_answer("정산 절차는?", [build_search_hit()])
+        grade = await client.grade_documents("정산 절차는?", [build_search_hit()])
+        rewrite = await client.rewrite_query("정산 절차는?", "근거 부족")
 
     assert intent.intent == IntentCategory.PROCEDURE
     assert intent.risk_level == RiskLevel.LOW
     assert answer.citations[0].chunk_id == CHUNK_ID
+    assert grade.relevant_chunk_ids == [CHUNK_ID]
+    assert rewrite.query == "정산 승인 절차"
 
 
 @pytest.mark.asyncio

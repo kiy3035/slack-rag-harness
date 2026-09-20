@@ -33,4 +33,13 @@
 - 관련성 재판정, 검색어 재작성, 답변 재생성 횟수 제한, 인용 영속화, 사람 승인 API는 로드맵에 명시된 5단계이므로 구현하지 않았다.
 - 따라서 4단계의 `REVIEW_REQUIRED`는 작업 상태까지만 기록한다. 별도 `review_queue`와 승인 흐름은 5단계에서 추가한다.
 
+## 5단계 기술 결정
+
+- Slack `thread_id`를 LangGraph Checkpoint 키로 그대로 쓰면 같은 Thread의 여러 작업이 상태를 공유한다. Checkpoint는 `{job_id}:run:{workflow_revision}`으로 분리했다.
+- 재검색 요청은 새 Outbox를 만들지 않는다. 작업 세대를 한 번 증가시키고 기존의 작업별 UNIQUE Outbox를 `READY`로 되돌려 중복 발행 행을 방지한다.
+- LangGraph `interrupt`는 선택 사항이며, 이번 단계는 DB의 `review_queue`를 지속 가능한 검토 원장으로 사용한다. 검토 재검색은 새 Workflow 세대로 시작해 과거 완료 상태를 잘못 재사용하지 않는다.
+- 근거가 없는 민감 질문은 승인 버튼만으로 완료할 수 없다. 초안과 허용된 관련 인용이 모두 있는 경우에만 승인·수정 승인을 허용한다.
+- LLM이 반환한 단일 신뢰도에 의존하지 않고 검색 유사도, 관련 Chunk ID, 문서 충돌, Schema 결과, 인용 허용목록을 각각 보존하고 검사한다.
+- 실제 `qwen3:1.7b`가 문서 밖 질문에도 관련 Chunk를 선택한 사례가 있어, 모델 판정 뒤 질문 핵심어와 문서의 결정적 중첩을 추가 검사한다. 의미상 동의어를 놓치는 경우에는 근거 없이 완료하지 않고 제한 재검색 뒤 검토로 보낸다.
+
 직접 의존성은 `pyproject.toml`, 해석된 전체 의존성은 `requirements.lock`, Docker 이미지 태그는 `Dockerfile`과 `compose.yaml`에 고정했다. 새 버전 도입 시 같은 통합 테스트를 다시 실행한다.

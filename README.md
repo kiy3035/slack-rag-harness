@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 4단계까지이며, 문서 적재·검색과 Checkpoint 기반 답변 생성 Workflow를 포함한다. 실제 Slack 발신과 사람 검토 API는 아직 포함하지 않는다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 5단계까지이며, 관련성 판정·제한 재검색·출력 검증과 멱등적인 사람 검토 API를 포함한다. 실제 Slack 발신은 아직 포함하지 않는다.
 
 ## 실행
 
@@ -36,7 +36,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/events -Content
 
 RabbitMQ에는 `rag_harness.jobs`, `rag_harness.jobs.retry`, `rag_harness.jobs.dlq` 세 Queue가 선언된다. Retry Queue는 고정 TTL 이후 기본 작업 Queue로 돌아가며, 처리 불가능한 메시지는 DLQ로 분리한다.
 
-`worker`는 메시지를 조건부 선점한 뒤 4단계 LangGraph Workflow를 실행한다. 로컬 생성 모델이 준비되기 전에 작업을 소비하지 않도록 아래의 모델 설치를 먼저 끝내고 서비스를 시작한다.
+`worker`는 메시지를 조건부 선점한 뒤 5단계 LangGraph Workflow를 실행한다. 로컬 생성 모델이 준비되기 전에 작업을 소비하지 않도록 아래의 모델 설치를 먼저 끝내고 서비스를 시작한다.
 
 ## 문서 적재와 검색
 
@@ -50,16 +50,24 @@ docker compose run --rm api python -m app.retrieval.main search "정산 배치 �
 
 설정, 재적재 정책, 검색 임계값에 대한 설명은 [문서 적재와 검색 가이드](docs/RETRIEVAL.md)에 정리했다.
 
-## 기본 답변 Workflow
+## 검증·재검색 답변 Workflow
 
-4단계 Workflow는 입력 검증, 의도 분류, pgvector 검색, 구조화 답변 생성을 순서대로 실행하고 각 노드 결과를 PostgreSQL에 Checkpoint로 저장한다. 생성 모델은 무료 로컬 Ollama 모델만 사용한다.
+5단계 Workflow는 입력 검증, 의도 분류, pgvector 검색, 관련성 판정, 최대 1회 검색어 재작성, 구조화 답변 생성, 최대 2회 출력·인용 검증을 수행한다. 각 노드 결과는 PostgreSQL에 Checkpoint로 저장하고 생성 모델은 무료 로컬 Ollama 모델만 사용한다.
 
 ```powershell
 ollama pull qwen3:1.7b
 docker compose up --build -d postgres rabbitmq api outbox-publisher worker
 ```
 
-정상 답변은 이번 실행에서 검색된 `document_id`와 `chunk_id`만 인용할 수 있다. 민감 질문이나 검색 근거가 없는 질문은 자동 완료하지 않고 `REVIEW_REQUIRED`로 끝난다. 구성, 재개 범위, 5단계와의 경계는 [기본 Workflow 가이드](docs/WORKFLOW.md)에 정리했다.
+정상 답변은 이번 실행에서 관련성이 통과된 `document_id`와 `chunk_id`만 인용할 수 있다. 민감 질문, 문서 충돌, 근거 부족, 출력 계약 위반은 자동 완료하지 않고 `review_queue`에 남긴다. 구성과 재개 범위는 [Workflow 가이드](docs/WORKFLOW.md), 검토 절차는 [사람 검토 API 가이드](docs/REVIEW.md)에 정리했다.
+
+## 사람 검토
+
+대기 항목은 `GET /api/v1/reviews?status=WAITING`과 `GET /api/v1/reviews/{review_id}`로 조회한다. 검토자는 원 검색 근거를 확인한 뒤 승인, 수정 승인, 재검색, 반려 중 하나를 선택한다. 동일 결정을 다시 보내도 한 번만 적용된다.
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/reviews/{review_id}/reject -ContentType application/json -Body '{"comment":"근거 부족"}'
+```
 
 ## 테스트
 

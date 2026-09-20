@@ -7,11 +7,20 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.retrieval.schemas import SearchHit
 from app.workflow.prompts import (
     ANSWER_SYSTEM_PROMPT,
+    DOCUMENT_GRADE_SYSTEM_PROMPT,
     INTENT_SYSTEM_PROMPT,
+    REWRITE_SYSTEM_PROMPT,
     build_answer_prompt,
+    build_document_grade_prompt,
     build_intent_prompt,
+    build_rewrite_prompt,
 )
-from app.workflow.schemas import AnswerOutput, IntentOutput
+from app.workflow.schemas import (
+    AnswerOutput,
+    DocumentGradeOutput,
+    IntentOutput,
+    RewriteQueryOutput,
+)
 
 
 def default_generation_options() -> dict[str, float]:
@@ -42,6 +51,16 @@ class WorkflowModelClient(Protocol):
         self, question: str, chunks: Sequence[SearchHit]
     ) -> AnswerOutput:
         """이번 실행의 검색 Chunk만 인용하는 구조화 답변을 반환한다."""
+        ...
+
+    async def grade_documents(
+        self, question: str, chunks: Sequence[SearchHit]
+    ) -> DocumentGradeOutput:
+        """검색 Chunk 중 질문을 직접 뒷받침하는 근거 ID를 반환한다."""
+        ...
+
+    async def rewrite_query(self, question: str, reason: str) -> RewriteQueryOutput:
+        """검색 부족 사유를 반영하되 원래 의미를 유지한 검색어를 반환한다."""
         ...
 
 
@@ -101,6 +120,24 @@ class OllamaWorkflowModelClient:
             system_prompt=ANSWER_SYSTEM_PROMPT,
             prompt=build_answer_prompt(question, chunks),
             output_type=AnswerOutput,
+        )
+
+    async def grade_documents(
+        self, question: str, chunks: Sequence[SearchHit]
+    ) -> DocumentGradeOutput:
+        """검색 결과의 관련성과 충돌 여부를 JSON Schema로 판정한다."""
+        return await self._generate(
+            system_prompt=DOCUMENT_GRADE_SYSTEM_PROMPT,
+            prompt=build_document_grade_prompt(question, chunks),
+            output_type=DocumentGradeOutput,
+        )
+
+    async def rewrite_query(self, question: str, reason: str) -> RewriteQueryOutput:
+        """근거 부족 질문을 한정된 검색어 구조로 재작성한다."""
+        return await self._generate(
+            system_prompt=REWRITE_SYSTEM_PROMPT,
+            prompt=build_rewrite_prompt(question, reason),
+            output_type=RewriteQueryOutput,
         )
 
     async def _generate(

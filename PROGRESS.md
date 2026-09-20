@@ -510,3 +510,100 @@ docker compose --profile test run --build --rm test
 
 - 실제 Qwen 검증 후에도 개발 DB의 실제 매뉴얼과 임베딩은 유지했다.
 - 유료 API나 외부 생성 서비스를 사용하지 않았다.
+
+## 2026-09-20 — 5단계 완료
+
+### 현재 단계
+
+- 0~4단계: 완료
+- 5단계 검증·재검색·사람 검토: 완료
+- 6단계 이후: 미구현(사용자 요청 범위 밖)
+
+### 4단계 병합
+
+- 사용자의 병합 요청에 따라 GitHub PR #3을 병합했다.
+- 병합 커밋: `fe3fbde22329ebba96736ca9ed5b7d7918929c96`
+- 최신 `main`에서 `feat/stage-5-validation-review` 브랜치를 생성했다.
+
+### 설계 경계와 요구사항 보정
+
+- Slack Thread ID와 LangGraph Checkpoint 키를 분리했다. 작업별 `{job_id}:run:{workflow_revision}`을 사용해 같은 Slack Thread의 여러 질문이 상태를 공유하지 않게 했다.
+- 검토 재검색은 새 Outbox를 만들지 않고 작업별 UNIQUE Outbox를 `READY`로 되돌리며 `workflow_revision`을 한 번 증가시킨다.
+- 선택 사항인 LangGraph `interrupt` 대신 PostgreSQL `review_queue`를 검토 원장으로 사용한다. 재검색은 새 Workflow 세대로 시작한다.
+- 초안과 허용된 관련 인용이 없는 민감·근거 부족 항목은 승인할 수 없고, 문서 보완 후 재검색하거나 반려해야 한다.
+- 작은 로컬 모델의 관련성 판정을 단독으로 신뢰하지 않는다. LLM이 선택한 Chunk를 질문 핵심어의 실제 문서 중첩으로 다시 제한하며, 불확실하면 자동 완료보다 검토를 선택한다.
+
+### 완료 항목
+
+- 검색 결과 관련성·문서 충돌 구조화 판정
+- 검색어 재작성 기본 최대 1회와 답변 생성 기본 최대 2회 제한
+- 답변 Pydantic Schema, 현재 관련 Chunk 인용 허용목록, 민감 문자열 검사
+- 중복 인용의 단일 영속화와 조작 Chunk ID 차단
+- `workflow_revision`, `review_queue`, `answer_citation` Migration `0004`
+- 검토 대기 목록·상세 조회 API
+- 승인, 수정 승인, 재검색, 반려 API와 행 잠금 기반 멱등 상태 전이
+- 수정 승인 인용을 원 Workflow의 관련 Chunk 집합으로 제한
+- Workflow 결과와 검토/인용을 같은 트랜잭션으로 저장
+- 검토 절차와 안전 경계를 `docs/REVIEW.md`에 기록
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test
+최종 결과: 64 passed in 3.98s
+
+docker compose --profile test run --rm --no-deps test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm --no-deps test python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+검증 범위:
+
+- 정상: 관련 근거 답변 완료, 인용 영속화, 승인·수정 승인, 목록 조회
+- 경계: 문서 없음의 재작성 정확히 1회, 같은 인용 반복의 한 건 저장, 검토 재검색 세대 한 번 증가
+- 실패: 조작 Chunk ID, 원 검색 집합 밖 수정 인용, 잘못된 관련성 출력, 출력 Schema 위반
+- 멱등성: 승인·재검색·반려를 두 번 호출해도 상태 변경과 인용 저장이 한 번만 적용
+- 실제 인프라: PostgreSQL Checkpoint·검토·인용 트랜잭션과 RabbitMQ를 포함한 전체 회귀 64건 통과
+
+### 실제 로컬 Ollama E2E
+
+환경:
+
+- 생성 모델: `qwen3:1.7b`
+- Embedding 모델: `nomic-embed-text:latest`
+- 개발 DB: 실제 매뉴얼 6개, Chunk 24개
+- 실행 경로: 로컬 HTTP → Outbox → RabbitMQ → Worker → LangGraph → Ollama/pgvector → PostgreSQL
+
+최종 결과:
+
+- `정산 배치 마감 전에 무엇을 확인해야 하나요?`: `COMPLETED`, 시도 1회, `answer_citation` 1건
+- `화성 기지의 산소 배급 승인 절차는 무엇인가요?`: 검색어 재작성 1회와 검색 2회 후 `REVIEW_REQUIRED`
+- 검토 행: `reason_code=INSUFFICIENT_EVIDENCE`, `status=WAITING`, 허용 인용 0건
+- 검토 목록 API에서 해당 행 조회 성공
+- Migration 현재 버전: `0004`
+- API·PostgreSQL·RabbitMQ healthy, Worker·Outbox Publisher running
+
+실제 실행에서 처음 발견한 문제와 수정:
+
+- Qwen이 같은 유효 Chunk를 두 번 인용해 `uq_answer_citation_job_chunk` 제약이 저장을 차단했다. 저장 전에 동일 `(document_id, chunk_id)`를 한 건으로 정규화하고 실제 PostgreSQL 회귀 테스트를 추가했다.
+- Qwen이 문서 밖 화성 질문에 높은 유사도 후보를 관련 있다고 판정했다. 질문 핵심어가 실제 문서에 충분히 존재하는지 코드로 재검사해 한 번 재검색 후 검토로 전환했다.
+- 최초 진단 실행의 두 작업은 `DEAD_LETTER/WORKER_INTEGRITYERROR`로 개발 DB에 그대로 남겨 오류 결과를 숨기거나 성공으로 바꾸지 않았다.
+
+### 남은 제한 사항
+
+- 핵심어 안전 검사는 보수적이어서 동의어만 사용하는 질문을 자동 완료하지 않고 검토로 보낼 수 있다. 평가 데이터 확대와 임계값 조정은 9단계 품질 평가에서 수행한다.
+- 검토 API는 현재 로컬 개발용이며 인증·검토자 식별·감사 주체 기록은 운영 노출 전에 필요하다.
+- Worker 강제 종료 후 오래된 `PROCESSING` 자동 회수, 오류 분류·지수 Backoff·DLQ 상태 동기화는 6단계 범위다.
+- 실제 Slack Thread 발신과 Workspace E2E는 7단계 범위다.
+
+### 다음 작업
+
+사용자 확인 후에만 6단계 오류 분류·제한 재시도·자동 복구를 구현한다.
