@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -14,6 +15,14 @@ from app.workflow.graph import WorkflowNodes, build_workflow_graph
 from app.workflow.model import OllamaWorkflowModelClient
 from app.workflow.repository import WorkflowRepository
 from app.workflow.service import WorkflowJobHandler, WorkflowRunner
+
+
+def configure_logging() -> None:
+    """Worker 노드 진행과 실패 로그가 표준 출력에 보이도록 INFO 로그를 설정한다."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s level=%(levelname)s logger=%(name)s %(message)s",
+    )
 
 
 async def run_worker() -> None:
@@ -76,6 +85,7 @@ async def run_worker() -> None:
 
 def main() -> None:
     """비동기 Worker 수명 주기를 단일 이벤트 루프로 실행한다."""
+    configure_logging()
     asyncio.run(run_worker())
 
 

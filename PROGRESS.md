@@ -464,3 +464,49 @@ git diff --check
 ### 다음 작업
 
 사용자 확인 후에만 5단계 검증·재검색·사람 검토를 구현한다.
+
+## 2026-09-20 — 실제 Qwen 후속 검증
+
+### 환경
+
+- 생성 모델: `qwen3:1.7b`
+- 모델 digest: `8f68893c685c`
+- 로컬 파일 크기: 1,359,293,444 bytes
+- Ollama 표시 파라미터: 2.0B, `Q4_K_M`
+- 기능: completion, tools, thinking
+- Embedding: `nomic-embed-text:latest`, 768차원
+- 실행 경로: 로컬 HTTP 접수 → Outbox → RabbitMQ → Worker → LangGraph → Ollama/pgvector → PostgreSQL
+- Worker 수: 1
+
+### 실제 실행에서 발견한 문제와 수정
+
+- 첫 정산 절차 질문과 고객 공지 정보 질문을 Qwen이 단어만 보고 `HIGH`로 과잉 분류해 `REVIEW_REQUIRED`로 중단했다.
+- 위험도 Prompt를 실제 변경·승인·삭제·발송 요구인지 판단하도록 보강하고, 읽기 전용 정보 질문과 실행 요청의 한국어 예시를 추가했다.
+- Worker에 INFO 로그 초기화가 없어 자동 테스트의 `caplog`에서는 보이던 노드 로그가 실제 컨테이너 표준 출력에는 나타나지 않았다.
+- `configure_logging`을 추가해 노드 시작·완료·실패와 수행 시간이 실제 Worker 로그에 출력되도록 수정했다.
+
+### 최종 실제 E2E 결과
+
+질문: `고객 공지에 포함하면 안 되는 정보는 무엇인가요?`
+
+- 작업 상태: `COMPLETED`
+- 시도 횟수: 1
+- 실행 노드: 입력 검증, 의도 분류, 검색, 답변 생성 모두 완료
+- PostgreSQL Checkpoint: 6건
+- 검색 Chunk: 5건
+- 생성 답변: `고객 공지에 포함하면 안 되는 정보는 '추측이나 확인되지 않은 복구 시각'이 포함되어 있다.`
+- 인용 Chunk: 2건, 모두 이번 실행의 검색 Chunk ID 집합에 포함
+- Worker 로그: 각 노드의 시작·완료와 `job_id`, `thread_id`, 수행 시간 출력 확인
+- Queue: 처리 후 Ready/Unacked 메시지 없음
+
+실제 실행은 구조화 출력, 검색 ID 허용목록, Checkpoint, DB 완료 상태까지 검증했다. 인용 두 건 중 일부는 답변 주장을 직접 뒷받침하는 의미적 근거가 약했다. ID가 실제 검색 결과라는 구조 검증은 통과했지만 의미적 관련성·인용 정확성은 5단계에서 별도로 평가하고 검토 전환해야 한다.
+
+### 회귀 검증
+
+```text
+docker compose --profile test run --build --rm test
+결과: 55 passed in 3.42s
+```
+
+- 실제 Qwen 검증 후에도 개발 DB의 실제 매뉴얼과 임베딩은 유지했다.
+- 유료 API나 외부 생성 서비스를 사용하지 않았다.

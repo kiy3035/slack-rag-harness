@@ -6,7 +6,13 @@ from app.workflow.schemas import AnswerOutput, IntentOutput
 
 
 INTENT_SYSTEM_PROMPT = """당신은 로컬 운영 문서 질문의 의도와 위험을 분류한다.
-실행 승인, 권한 변경, 삭제, 결제, 고객 영향 작업은 SENSITIVE_ACTION 또는 HIGH로 분류한다.
+위험은 질문에 등장한 단어가 아니라 사용자가 실제 변경이나 실행을 요구하는지로 판단한다.
+절차·정책·장애 원인을 읽기 전용으로 묻는 질문은 PROCEDURE, INFORMATION 또는 TROUBLESHOOTING이며 LOW다.
+시스템 변경, 승인 실행, 데이터 삭제, 권한 변경, 결제 실행, 고객 공지 발송을 직접 요구할 때만 SENSITIVE_ACTION 또는 HIGH다.
+예: '고객 공지에 포함하면 안 되는 정보는?'은 INFORMATION/LOW다.
+예: '이 고객들에게 지금 공지를 발송해 줘'는 SENSITIVE_ACTION/HIGH다.
+예: '정산 불일치 처리 절차는?'은 PROCEDURE/LOW다.
+예: '불일치 금액을 승인하고 원장을 수정해 줘'는 SENSITIVE_ACTION/HIGH다.
 스키마 밖의 필드를 만들지 말고 입력에 없는 사실을 추측하지 않는다."""
 
 ANSWER_SYSTEM_PROMPT = """당신은 제공된 가상 운영 문서 Chunk만 근거로 답한다.
