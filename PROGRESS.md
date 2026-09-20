@@ -224,3 +224,106 @@ SELECT version_num FROM alembic_version
 ### 다음 작업
 
 사용자 확인 후에만 3단계 문서 적재와 검색을 구현한다.
+
+## 2026-09-20 — 3단계 완료
+
+### 현재 단계
+
+- 0단계 환경과 뼈대: 완료
+- 1단계 작업 접수와 멱등성: 완료
+- 2단계 Outbox와 RabbitMQ: 완료
+- 3단계 문서 적재와 검색: 완료
+- 4단계 이후: 미구현(사용자 요청 범위 밖)
+
+### 2단계 병합
+
+- 검증된 `feat/stage-2-outbox-rabbitmq`를 원격 브랜치에 보존했다.
+- `gh` CLI가 설치돼 있지 않아 로컬 `main`에 명시적인 병합 커밋을 만든 뒤 GitHub `main`에 푸시했다.
+- 병합 커밋: `e67e23b Merge stage 2 outbox and RabbitMQ pipeline`
+- 병합된 `main`에서 `feat/stage-3-retrieval` 브랜치를 생성했다.
+
+### 설계 경계
+
+- Ollama는 호스트에서 실행하는 무료 로컬 서비스이며 기본 Embedding 모델은 `nomic-embed-text`다.
+- `vector(768)`은 Migration과 설정 검증 양쪽에서 고정했다. 다른 차원 모델은 새 Migration 없이 사용할 수 없다.
+- 외부 임베딩 호출 중에는 DB 트랜잭션을 열어두지 않는다.
+- 같은 `source_path`의 교체 트랜잭션은 PostgreSQL advisory lock으로 직렬화하고, 트랜잭션 안에서 해시를 다시 확인해 동시 재적재에도 중복 Chunk가 생기지 않게 했다.
+- 원문과 제목의 SHA-256이 같으면 임베딩 호출과 DB 쓰기를 생략한다.
+- 문서가 바뀌면 버전을 올리고 이전 Chunk를 삭제한 뒤 새 Chunk 전체를 같은 트랜잭션에 저장한다. 검색은 현재 버전만 대상으로 한다.
+- 최소 검색 점수 기본값은 평가 없이 임의의 정답을 만들지 않도록 `-1.0`이며 설정으로 외부화했다.
+
+### 완료 항목
+
+- `knowledge_document`, `knowledge_chunk`와 HNSW cosine index Migration `0003`
+- 제목 경계 우선, 긴 섹션 1,200자·120자 중첩 Markdown 분할 규칙
+- Pydantic 문서·Chunk·Ollama 요청/응답·검색 결과 Schema
+- Ollama `/api/embed` Client와 timeout, HTTP, JSON 계약, 개수, 768차원, 유한값 검증
+- pgvector cosine Top-K 검색, 최소 점수, 문서별 최대 Chunk 수 제한
+- 문서 버전, 동일 해시 생략, 변경 버전 원자적 교체 정책
+- 정산, 배포 롤백, 접근 권한, 장애 대응, 고객 공지, 백업 복구 가상 매뉴얼 6개
+- 실제 Ollama를 사용할 수 있는 문서 적재·검색 CLI
+- 통합 테스트 종료 시 Fake 임베딩과 작업 데이터를 항상 제거하는 Fixture 정리
+- 실행 방법과 모델 차원 제약을 `docs/RETRIEVAL.md`에 기록
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test
+최종 결과: 41 passed in 1.52s
+
+docker compose --profile test run --rm --no-deps test sh -c "python -m compileall -q app tests && pip check"
+결과: 컴파일 성공, No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+검증 범위:
+
+- 정상: 제목별 Markdown 분할, Ollama 정상 응답, 실제 PostgreSQL 저장과 pgvector cosine 검색
+- 경계: 긴 섹션 최대 길이 분할, 빈 Markdown 거부, 현재 문서 버전만 검색
+- 실패: Ollama timeout 전용 오류 변환, 필수 필드가 없는 응답 차단, 잘못된 개수·차원·비유한값 차단
+- 멱등성: 동일 문서 두 번째 적재에서 Embedding Client를 호출하지 않고 Chunk 수 유지
+- 버전: 변경 문서 재적재 시 버전 2로 증가하고 이전 버전 Chunk가 남지 않음
+- 검색 평가: 대표 질문 10개 모두 기대한 가상 매뉴얼이 Top-3에 포함
+- 회귀: 0~2단계 Slack 서명, DB 멱등성, Outbox, 실제 RabbitMQ 테스트를 포함한 전체 41건 통과
+- 격리: 최종 테스트 후 `knowledge_document=0`, `knowledge_chunk=0`
+
+### 해결한 검증 이슈
+
+- Embedding 차원을 `Literal[768]`로 처음 제한했을 때 Compose 환경변수 문자열 `"768"`을 Pydantic이 변환하지 못해 Migration 시작 전에 실패했다. 문자열 변환과 768 고정을 함께 만족하는 `Field(ge=768, le=768)` 제약으로 수정하고 전체 테스트를 재실행했다.
+- 최초 통합 테스트 Fixture가 테스트 시작 전에만 테이블을 비워 결정적 Fake 임베딩 6개 문서가 개발 DB에 남았다. `finally`에서 다시 비우도록 수정했고 최종 테스트 후 문서와 Chunk가 모두 0건임을 실제 쿼리로 확인했다.
+
+### 실제 인프라 검증
+
+```text
+docker compose up --build -d api outbox-publisher
+결과: api healthy, outbox-publisher running, postgres/rabbitmq healthy
+
+GET /health/ready
+결과: {"status":"ok"}
+
+SELECT version_num FROM alembic_version
+결과: 0003
+
+SELECT extversion FROM pg_extension WHERE extname='vector'
+결과: 0.8.6
+```
+
+- `knowledge_chunk`에 HNSW cosine index와 문서 버전 index가 실제 생성됐음을 확인했다.
+- 호스트의 `ollama` 명령은 설치돼 있지 않았고 `localhost:11434` 호출도 timeout이 발생했다. 따라서 실제 모델 다운로드·실제 Ollama 임베딩 품질 검증은 실행하지 못했다.
+- Ollama가 없어도 자동 테스트는 결정적 Fake Client와 HTTP Mock으로 전부 통과하며 유료 API나 Slack 연결을 사용하지 않는다.
+
+### 남은 제한 사항
+
+- 실제 Ollama 모델을 이용한 적재와 검색은 호스트에 Ollama 및 `nomic-embed-text`를 준비한 뒤 실행해야 한다.
+- 대표 질문 평가는 검색 파이프라인과 문서 매핑의 재현성 검증이며 실제 모델의 의미 검색 품질 수치가 아니다.
+- 검색어 재작성, LLM 관련성 판정, 답변 생성은 4단계 이후 범위다.
+- 실제 AI Workflow Worker가 없으므로 RabbitMQ 작업과 검색 서비스를 연결하지 않았다.
+
+### 다음 작업
+
+사용자 확인 후에만 4단계 LangGraph 기본 Workflow를 구현한다.

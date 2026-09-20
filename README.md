@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 2단계까지이며, LLM·검색·실제 Slack 발신은 아직 포함하지 않는다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 3단계까지이며, 문서 적재와 검색은 포함하지만 답변 생성 Workflow와 실제 Slack 발신은 아직 포함하지 않는다.
 
 ## 실행
 
@@ -37,6 +37,18 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/events -Content
 RabbitMQ에는 `rag_harness.jobs`, `rag_harness.jobs.retry`, `rag_harness.jobs.dlq` 세 Queue가 선언된다. Retry Queue는 고정 TTL 이후 기본 작업 Queue로 돌아가며, 처리 불가능한 메시지는 DLQ로 분리한다.
 
 2단계는 메시지 전달과 중복 실행 Gate까지만 제공한다. 실제 AI Handler가 없는 임시 Consumer 서비스를 띄우면 작업을 의미 없이 소비하므로 상시 Worker 컨테이너는 아직 실행하지 않는다. 실제 Workflow Worker는 4단계에서 이 Consumer 경계에 연결한다.
+
+## 문서 적재와 검색
+
+`knowledge/manuals`의 가상 운영 매뉴얼 6개를 제목·문단 기준으로 분할하고, 로컬 Ollama의 `nomic-embed-text` 임베딩을 PostgreSQL `vector(768)`에 저장한다. 같은 문서 원문은 재적재하지 않으며 변경 원문은 버전을 올리고 기존 Chunk를 원자적으로 교체한다.
+
+```powershell
+ollama pull nomic-embed-text
+docker compose run --rm api python -m app.retrieval.main ingest knowledge/manuals
+docker compose run --rm api python -m app.retrieval.main search "정산 배치 마감 전에 무엇을 확인하나요?"
+```
+
+설정, 재적재 정책, 검색 임계값에 대한 설명은 [문서 적재와 검색 가이드](docs/RETRIEVAL.md)에 정리했다.
 
 ## 테스트
 
