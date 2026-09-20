@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.lock \
 
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY knowledge ./knowledge
 COPY tests ./tests
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
