@@ -37,6 +37,22 @@ services:
     environment: &app-environment
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rag_harness}:${POSTGRES_PASSWORD:-local_dev_password}@postgres:5432/${POSTGRES_DB:-rag_harness}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-rag_harness}:${RABBITMQ_PASSWORD:-local_dev_password}@rabbitmq:5672/
+      RABBITMQ_JOB_EXCHANGE: ${RABBITMQ_JOB_EXCHANGE:-rag_harness.jobs}
+      RABBITMQ_RETRY_EXCHANGE: ${RABBITMQ_RETRY_EXCHANGE:-rag_harness.jobs.retry}
+      RABBITMQ_DEAD_LETTER_EXCHANGE: ${RABBITMQ_DEAD_LETTER_EXCHANGE:-rag_harness.jobs.dlx}
+      RABBITMQ_JOB_QUEUE: ${RABBITMQ_JOB_QUEUE:-rag_harness.jobs}
+      RABBITMQ_RETRY_QUEUE: ${RABBITMQ_RETRY_QUEUE:-rag_harness.jobs.retry}
+      RABBITMQ_DEAD_LETTER_QUEUE: ${RABBITMQ_DEAD_LETTER_QUEUE:-rag_harness.jobs.dlq}
+      RABBITMQ_JOB_ROUTING_KEY: ${RABBITMQ_JOB_ROUTING_KEY:-job.execute}
+      RABBITMQ_RETRY_ROUTING_KEY: ${RABBITMQ_RETRY_ROUTING_KEY:-job.retry}
+      RABBITMQ_DEAD_LETTER_ROUTING_KEY: ${RABBITMQ_DEAD_LETTER_ROUTING_KEY:-job.dead}
+      RABBITMQ_RETRY_DELAY_MS: ${RABBITMQ_RETRY_DELAY_MS:-5000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-20}
+      OUTBOX_POLL_INTERVAL_SECONDS: ${OUTBOX_POLL_INTERVAL_SECONDS:-0.5}
+      OUTBOX_LEASE_SECONDS: ${OUTBOX_LEASE_SECONDS:-30}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-5}
+      OUTBOX_RETRY_BASE_SECONDS: ${OUTBOX_RETRY_BASE_SECONDS:-1}
+      OUTBOX_RETRY_MAX_SECONDS: ${OUTBOX_RETRY_MAX_SECONDS:-60}
       ENABLE_LOCAL_EVENTS: ${ENABLE_LOCAL_EVENTS:-true}
       SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-local_test_signing_secret}
       SLACK_TIMESTAMP_TOLERANCE_SECONDS: ${SLACK_TIMESTAMP_TOLERANCE_SECONDS:-300}
@@ -53,6 +69,19 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
+
+  outbox-publisher:
+    build:
+      context: .
+    environment:
+      <<: *app-environment
+    command: ["sh", "-c", "alembic upgrade head && python -m app.outbox.main"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   test:
@@ -72,4 +101,3 @@ services:
 
 volumes:
   postgres-data:
-
