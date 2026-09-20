@@ -29,7 +29,10 @@ class Settings(BaseSettings):
     outbox_retry_max_seconds: int = Field(default=60, ge=1, le=86_400)
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
+    ollama_generation_model: str = "qwen3:1.7b"
     ollama_timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0)
+    ollama_generation_timeout_seconds: float = Field(default=120.0, gt=0.0, le=600.0)
+    workflow_question_max_chars: int = Field(default=4_000, ge=100, le=20_000)
     embedding_dimensions: int = Field(default=768, ge=768, le=768)
     document_chunk_max_chars: int = Field(default=1_200, ge=200, le=10_000)
     document_chunk_overlap_chars: int = Field(default=120, ge=0, le=2_000)
@@ -39,6 +42,11 @@ class Settings(BaseSettings):
     enable_local_events: bool = False
     slack_signing_secret: SecretStr = SecretStr("")
     slack_timestamp_tolerance_seconds: int = Field(default=300, ge=1, le=900)
+
+    @property
+    def checkpoint_database_url(self) -> str:
+        """SQLAlchemy URL을 LangGraph Psycopg가 이해하는 PostgreSQL URL로 변환한다."""
+        return self.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
 
 @lru_cache
