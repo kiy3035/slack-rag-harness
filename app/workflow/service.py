@@ -5,9 +5,11 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.common.domain import JobStatus
 from app.messaging.messages import JobMessage
+from app.retrieval.schemas import SearchHit
 from app.workflow.repository import WorkflowRepository
 from app.workflow.schemas import (
     AnswerOutput,
+    ReviewReasonCode,
     WorkflowRequest,
     WorkflowResult,
     WorkflowState,
@@ -42,11 +44,7 @@ class WorkflowRunner:
                 await self._graph.ainvoke(graph_input, config=config),
             )
         result = self._build_result(state)
-        await self._repository.record_outcome(
-            request.job_id,
-            status=result.status,
-            answer=result.answer,
-        )
+        await self._repository.record_outcome(result)
         return result
 
     def _build_config(self, thread_id: str) -> GraphConfig:
@@ -61,15 +59,26 @@ class WorkflowRunner:
         status = JobStatus(raw_status)
         raw_answer = state.get("draft_answer")
         answer = AnswerOutput.model_validate(raw_answer) if raw_answer is not None else None
-        chunk_ids = [
-            UUID(str(chunk["chunk_id"])) for chunk in state.get("retrieved_chunks", [])
+        retrieved_chunks = [
+            SearchHit.model_validate(chunk)
+            for chunk in state.get("retrieved_chunks", [])
         ]
+        relevant_chunks = [
+            SearchHit.model_validate(chunk)
+            for chunk in state.get("relevant_chunks", [])
+        ]
+        reason = state.get("review_reason_code")
         return WorkflowResult(
             job_id=UUID(state["job_id"]),
             thread_id=state["thread_id"],
             status=status,
             answer=answer,
-            retrieved_chunk_ids=chunk_ids,
+            retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved_chunks],
+            retrieved_chunks=retrieved_chunks,
+            relevant_chunks=relevant_chunks,
+            review_reason_code=ReviewReasonCode(reason) if reason is not None else None,
+            validation_errors=state.get("validation_errors", []),
+            workflow_revision=state["workflow_revision"],
         )
 
 
@@ -92,11 +101,12 @@ class WorkflowJobHandler:
             raise LookupError("WORKFLOW_JOB_NOT_FOUND")
         if job.status != JobStatus.PROCESSING:
             raise RuntimeError("WORKFLOW_JOB_NOT_PROCESSING")
-        thread_id = message.thread_id or str(message.job_id)
+        thread_id = f"{message.job_id}:run:{job.workflow_revision}"
         await self._runner.run(
             WorkflowRequest(
                 job_id=job.job_id,
                 thread_id=thread_id,
                 question=job.question,
+                workflow_revision=job.workflow_revision,
             )
         )

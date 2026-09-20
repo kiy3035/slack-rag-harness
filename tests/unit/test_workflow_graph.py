@@ -5,12 +5,15 @@ import pytest
 
 from app.common.domain import JobStatus
 from app.retrieval.schemas import SearchHit
-from app.workflow.graph import WorkflowNodes, WorkflowOutputError
+from app.workflow.graph import RelevanceValidator, WorkflowNodes
 from app.workflow.schemas import (
     AnswerOutput,
     CitationOutput,
+    DocumentGradeOutput,
     IntentCategory,
     IntentOutput,
+    ReviewReasonCode,
+    RewriteQueryOutput,
     RiskLevel,
     WorkflowState,
 )
@@ -66,6 +69,19 @@ class StaticModelClient:
             ],
         )
 
+    async def grade_documents(
+        self, question: str, chunks: list[SearchHit]
+    ) -> DocumentGradeOutput:
+        """첫 검색 Chunk를 질문과 직접 관련된 근거로 판정한다."""
+        return DocumentGradeOutput(
+            relevant_chunk_ids=[chunks[0].chunk_id],
+            reason="질문을 직접 설명하는 절차",
+        )
+
+    async def rewrite_query(self, question: str, reason: str) -> RewriteQueryOutput:
+        """검색 부족 단위 테스트에 사용할 결정적 재검색어를 반환한다."""
+        return RewriteQueryOutput(query=f"{question} 관련 절차")
+
 
 def build_search_hit() -> SearchHit:
     """노드 단위 테스트에 사용할 직렬화 가능한 검색 결과를 만든다."""
@@ -88,8 +104,10 @@ def initial_state() -> WorkflowState:
         "job_id": "55555555-5555-5555-5555-555555555555",
         "thread_id": "test-thread",
         "question": "  정산   절차는?  ",
+        "workflow_revision": 0,
         "retrieved_chunks": [],
         "retrieval_attempts": 0,
+        "query_rewrite_attempts": 0,
         "generation_attempts": 0,
         "validation_errors": [],
     }
@@ -100,7 +118,9 @@ async def test_workflow_nodes_complete_with_retrieved_citation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """정상 질문이 실제 검색 ID를 인용한 완료 상태와 노드 로그를 만드는지 확인한다."""
-    clock_values = iter((1.0, 1.1, 2.0, 2.2, 3.0, 3.3, 4.0, 4.4))
+    clock_values = iter(
+        (1.0, 1.1, 2.0, 2.2, 3.0, 3.3, 4.0, 4.4, 5.0, 5.5, 6.0, 6.6)
+    )
 
     def monotonic_clock() -> float:
         """노드별 수행 시간 로그를 결정적으로 계산할 시각을 반환한다."""
@@ -117,7 +137,9 @@ async def test_workflow_nodes_complete_with_retrieved_citation(
     state.update(await nodes.validate_input(state))
     state.update(await nodes.classify_intent(state))
     state.update(await nodes.retrieve_documents(state))
+    state.update(await nodes.grade_documents(state))
     state.update(await nodes.generate_answer(state))
+    state.update(await nodes.validate_answer(state))
 
     answer = AnswerOutput.model_validate(state["draft_answer"])
     assert state["final_status"] == JobStatus.COMPLETED.value
@@ -127,9 +149,7 @@ async def test_workflow_nodes_complete_with_retrieved_citation(
 
 
 @pytest.mark.asyncio
-async def test_workflow_rejects_citation_outside_current_search(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+async def test_workflow_retries_then_reviews_citation_outside_current_search() -> None:
     """생성 모델이 검색되지 않은 Chunk ID를 인용하면 완료 상태가 되지 않는지 확인한다."""
     nodes = WorkflowNodes(
         search_service=StaticSearchService(),
@@ -142,11 +162,16 @@ async def test_workflow_rejects_citation_outside_current_search(
     state.update(await nodes.validate_input(state))
     state.update(await nodes.classify_intent(state))
     state.update(await nodes.retrieve_documents(state))
-    caplog.set_level(logging.ERROR)
+    state.update(await nodes.grade_documents(state))
+    state.update(await nodes.generate_answer(state))
+    state.update(await nodes.validate_answer(state))
+    assert state.get("final_status") is None
+    state.update(await nodes.generate_answer(state))
+    state.update(await nodes.validate_answer(state))
 
-    with pytest.raises(WorkflowOutputError, match="검색 결과"):
-        await nodes.generate_answer(state)
-    assert "workflow_node_failed node=generate_answer" in caplog.text
+    assert state["final_status"] == JobStatus.REVIEW_REQUIRED.value
+    assert state["review_reason_code"] == ReviewReasonCode.CITATION_INVALID.value
+    assert state["generation_attempts"] == 2
 
 
 @pytest.mark.asyncio
@@ -161,12 +186,16 @@ async def test_workflow_marks_missing_evidence_for_review() -> None:
     state.update(await nodes.validate_input(state))
     state.update(await nodes.classify_intent(state))
     state.update(await nodes.retrieve_documents(state))
-    state.update(await nodes.generate_answer(state))
+    state.update(await nodes.grade_documents(state))
+    assert state.get("final_status") is None
+    state.update(await nodes.rewrite_query(state))
+    state.update(await nodes.retrieve_documents(state))
+    state.update(await nodes.grade_documents(state))
 
-    answer = AnswerOutput.model_validate(state["draft_answer"])
     assert state["final_status"] == JobStatus.REVIEW_REQUIRED.value
-    assert answer.needs_review is True
-    assert answer.citations == []
+    assert state["review_reason_code"] == ReviewReasonCode.INSUFFICIENT_EVIDENCE.value
+    assert state["query_rewrite_attempts"] == 1
+    assert state["retrieval_attempts"] == 2
 
 
 @pytest.mark.asyncio
@@ -186,3 +215,12 @@ async def test_workflow_rejects_empty_and_oversized_questions() -> None:
         await nodes.validate_input(empty)
     with pytest.raises(ValueError, match="초과"):
         await nodes.validate_input(oversized)
+
+
+def test_relevance_validator_requires_actual_question_keywords() -> None:
+    """LLM이 선택해도 질문 핵심어가 없는 Chunk는 관련 근거에서 제외하는지 검증한다."""
+    validator = RelevanceValidator()
+    hit = build_search_hit()
+
+    assert validator.filter("정산 절차는?", [hit]) == [hit]
+    assert validator.filter("화성 기지의 산소 배급 절차는?", [hit]) == []

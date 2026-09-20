@@ -22,9 +22,11 @@ from app.workflow.repository import WorkflowRepository
 from app.workflow.schemas import (
     AnswerOutput,
     CitationOutput,
+    DocumentGradeOutput,
     IntentCategory,
     IntentOutput,
     RiskLevel,
+    RewriteQueryOutput,
     WorkflowRequest,
 )
 from app.workflow.service import WorkflowRunner
@@ -111,6 +113,19 @@ class CitingModelClient:
                 )
             ],
         )
+
+    async def grade_documents(
+        self, question: str, chunks: Sequence[SearchHit]
+    ) -> DocumentGradeOutput:
+        """실제 pgvector 첫 결과를 관련 근거로 판정한다."""
+        return DocumentGradeOutput(
+            relevant_chunk_ids=[chunks[0].chunk_id],
+            reason="정산 질문과 직접 관련된 매뉴얼",
+        )
+
+    async def rewrite_query(self, question: str, reason: str) -> RewriteQueryOutput:
+        """이 통합 시나리오에서는 사용되지 않을 결정적 재검색어를 반환한다."""
+        return RewriteQueryOutput(query=question)
 
 
 def checkpoint_url() -> str:

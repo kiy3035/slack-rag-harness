@@ -7,16 +7,18 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    Float,
     String,
     Text,
     UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
-from app.common.domain import EventSource, JobStatus, OutboxStatus
+from app.common.domain import EventSource, JobStatus, OutboxStatus, ReviewStatus
 from app.db.base import Base
 
 
@@ -58,6 +60,7 @@ class AiJob(Base):
         default=JobStatus.RECEIVED,
     )
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    workflow_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     result_answer: Mapped[str | None] = mapped_column(Text)
     failure_code: Mapped[str | None] = mapped_column(String(100))
     failure_message: Mapped[str | None] = mapped_column(String(500))
@@ -70,6 +73,12 @@ class AiJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     outbox: Mapped["JobOutbox"] = relationship(back_populates="job", uselist=False)
+    reviews: Mapped[list["ReviewQueue"]] = relationship(
+        back_populates="job", cascade="all, delete-orphan"
+    )
+    citations: Mapped[list["AnswerCitation"]] = relationship(
+        back_populates="job", cascade="all, delete-orphan"
+    )
 
 
 class JobOutbox(Base):
@@ -158,3 +167,80 @@ class KnowledgeChunk(Base):
     )
 
     document: Mapped[KnowledgeDocument] = relationship(back_populates="chunks")
+
+
+class ReviewQueue(Base):
+    """자동 처리가 중단된 작업과 사람의 단일 결정을 영속화한다."""
+
+    __tablename__ = "review_queue"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id",
+            "workflow_revision",
+            name="uq_review_queue_job_revision",
+        ),
+    )
+
+    review_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ai_job.job_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    workflow_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    draft_answer: Mapped[str | None] = mapped_column(Text)
+    draft_citations: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    allowed_citations: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    status: Mapped[ReviewStatus] = mapped_column(
+        Enum(ReviewStatus, name="review_status", native_enum=True, validate_strings=True),
+        nullable=False,
+        default=ReviewStatus.WAITING,
+    )
+    review_comment: Mapped[str | None] = mapped_column(String(1_000))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    job: Mapped[AiJob] = relationship(back_populates="reviews")
+
+
+class AnswerCitation(Base):
+    """최종 답변과 검증된 검색 Chunk의 연결 및 검색 점수를 저장한다."""
+
+    __tablename__ = "answer_citation"
+    __table_args__ = (
+        UniqueConstraint("job_id", "chunk_id", name="uq_answer_citation_job_chunk"),
+        CheckConstraint(
+            "similarity_score >= -1 AND similarity_score <= 1",
+            name="ck_answer_citation_similarity_range",
+        ),
+    )
+
+    citation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ai_job.job_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("knowledge_document.document_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    chunk_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("knowledge_chunk.chunk_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    similarity_score: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    job: Mapped[AiJob] = relationship(back_populates="citations")

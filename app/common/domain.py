@@ -33,3 +33,12 @@ class OutboxStatus(StrEnum):
     SENT = "SENT"
     FAIL = "FAIL"
 
+
+class ReviewStatus(StrEnum):
+    """사람 검토 요청의 멱등한 결정 상태를 정의한다."""
+
+    WAITING = "WAITING"
+    APPROVED = "APPROVED"
+    EDITED = "EDITED"
+    RETRY_REQUESTED = "RETRY_REQUESTED"
+    REJECTED = "REJECTED"

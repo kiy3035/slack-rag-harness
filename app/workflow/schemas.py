@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.common.domain import JobStatus
+from app.retrieval.schemas import SearchHit
 
 
 class IntentCategory(StrEnum):
@@ -24,6 +25,19 @@ class RiskLevel(StrEnum):
     HIGH = "HIGH"
 
 
+class ReviewReasonCode(StrEnum):
+    """자동 완료를 중단한 검색·검증 사유를 검색 가능한 코드로 제한한다."""
+
+    SENSITIVE_INTENT = "SENSITIVE_INTENT"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+    DOCUMENT_CONFLICT = "DOCUMENT_CONFLICT"
+    RELEVANCE_OUTPUT_INVALID = "RELEVANCE_OUTPUT_INVALID"
+    OUTPUT_SCHEMA_INVALID = "OUTPUT_SCHEMA_INVALID"
+    CITATION_INVALID = "CITATION_INVALID"
+    SENSITIVE_OUTPUT = "SENSITIVE_OUTPUT"
+    MODEL_REVIEW_REQUIRED = "MODEL_REVIEW_REQUIRED"
+
+
 class CitationOutput(BaseModel):
     """답변이 참조한 실제 문서와 Chunk 식별자를 검증한다."""
 
@@ -41,6 +55,24 @@ class IntentOutput(BaseModel):
     intent: IntentCategory
     risk_level: RiskLevel
     reason: str = Field(min_length=1, max_length=500)
+
+
+class DocumentGradeOutput(BaseModel):
+    """검색 Chunk의 관련성 ID와 문서 충돌 여부를 구조화해 검증한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    relevant_chunk_ids: list[UUID] = Field(max_length=20)
+    conflict_detected: bool = False
+    reason: str = Field(min_length=1, max_length=1_000)
+
+
+class RewriteQueryOutput(BaseModel):
+    """원 질문의 의미를 유지한 단일 재검색어 출력을 검증한다."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    query: str = Field(min_length=1, max_length=1_000)
 
 
 class AnswerOutput(BaseModel):
@@ -71,6 +103,7 @@ class WorkflowRequest(BaseModel):
     job_id: UUID
     thread_id: str = Field(min_length=1, max_length=255)
     question: str = Field(min_length=1, max_length=20_000)
+    workflow_revision: int = Field(default=0, ge=0)
 
     def to_state(self) -> "WorkflowState":
         """검증된 요청을 LangGraph 첫 Checkpoint 입력으로 변환한다."""
@@ -78,8 +111,10 @@ class WorkflowRequest(BaseModel):
             "job_id": str(self.job_id),
             "thread_id": self.thread_id,
             "question": self.question,
+            "workflow_revision": self.workflow_revision,
             "retrieved_chunks": [],
             "retrieval_attempts": 0,
+            "query_rewrite_attempts": 0,
             "generation_attempts": 0,
             "validation_errors": [],
         }
@@ -93,6 +128,11 @@ class WorkflowResult(BaseModel):
     status: JobStatus
     answer: AnswerOutput | None
     retrieved_chunk_ids: list[UUID]
+    retrieved_chunks: list[SearchHit]
+    relevant_chunks: list[SearchHit]
+    review_reason_code: ReviewReasonCode | None
+    validation_errors: list[str]
+    workflow_revision: int
 
 
 class WorkflowJob(BaseModel):
@@ -101,6 +141,7 @@ class WorkflowJob(BaseModel):
     job_id: UUID
     question: str
     status: JobStatus
+    workflow_revision: int
 
 
 class WorkflowState(TypedDict):
@@ -109,15 +150,25 @@ class WorkflowState(TypedDict):
     job_id: str
     thread_id: str
     question: str
+    workflow_revision: int
     normalized_question: NotRequired[str]
+    search_query: NotRequired[str]
     intent: NotRequired[str]
     risk_level: NotRequired[str]
     intent_reason: NotRequired[str]
     retrieved_chunks: list[dict[str, object]]
+    relevant_chunks: NotRequired[list[dict[str, object]]]
+    relevance_reason: NotRequired[str]
+    relevance_passed: NotRequired[bool]
+    conflict_detected: NotRequired[bool]
     retrieval_attempts: int
+    query_rewrite_attempts: int
     generation_attempts: int
     draft_answer: NotRequired[dict[str, object]]
+    schema_valid: NotRequired[bool]
+    citations_valid: NotRequired[bool]
     validation_errors: list[str]
+    review_reason_code: NotRequired[str]
     final_status: NotRequired[str]
     last_node: NotRequired[str]
 

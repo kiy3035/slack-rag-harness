@@ -59,6 +59,8 @@ async def run_worker() -> None:
             search_service=search_service,
             model_client=model_client,
             question_max_chars=settings.workflow_question_max_chars,
+            max_query_rewrites=settings.workflow_max_query_rewrites,
+            max_generation_attempts=settings.workflow_max_generation_attempts,
         )
         async with AsyncPostgresSaver.from_conn_string(
             settings.checkpoint_database_url
