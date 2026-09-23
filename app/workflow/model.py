@@ -64,6 +64,16 @@ class WorkflowModelClient(Protocol):
         ...
 
 
+class DocumentGradeClient(Protocol):
+    """검색 결과 관련성 판정을 로컬 또는 선택형 외부 모델로 교체하는 경계다."""
+
+    async def grade_documents(
+        self, question: str, chunks: Sequence[SearchHit]
+    ) -> DocumentGradeOutput:
+        """질문을 직접 뒷받침하는 Chunk와 문서 충돌 여부를 반환한다."""
+        ...
+
+
 class OllamaGenerateRequest(BaseModel):
     """Ollama generate API의 비스트리밍 구조화 출력 요청을 검증한다."""
 

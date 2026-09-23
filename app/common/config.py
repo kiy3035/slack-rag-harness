@@ -1,7 +1,19 @@
+from datetime import date
+from enum import StrEnum
 from functools import lru_cache
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+JEV_CONFIRMED_FREE_USE_NOT_AFTER = date(2026, 9, 25)
+
+
+class DocumentGraderProvider(StrEnum):
+    """검색 문서 관련성 판정에 사용할 구현을 제한한다."""
+
+    OLLAMA = "ollama"
+    JEV = "jev"
 
 
 class Settings(BaseSettings):
@@ -35,6 +47,18 @@ class Settings(BaseSettings):
     workflow_question_max_chars: int = Field(default=4_000, ge=100, le=20_000)
     workflow_max_query_rewrites: int = Field(default=1, ge=0, le=3)
     workflow_max_generation_attempts: int = Field(default=2, ge=1, le=5)
+    workflow_document_grader: DocumentGraderProvider = DocumentGraderProvider.OLLAMA
+    ai_gateway_api_key: SecretStr = SecretStr("")
+    jev_base_url: str = "https://ai-gateway.vercel.sh"
+    jev_model: str = "typesafe-ai/jev"
+    jev_timeout_seconds: float = Field(default=15.0, gt=0.0, le=120.0)
+    jev_relevance_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    jev_conflict_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    jev_fallback_to_ollama: bool = True
+    jev_free_use_not_after: date = Field(
+        default=JEV_CONFIRMED_FREE_USE_NOT_AFTER,
+        le=JEV_CONFIRMED_FREE_USE_NOT_AFTER,
+    )
     embedding_dimensions: int = Field(default=768, ge=768, le=768)
     document_chunk_max_chars: int = Field(default=1_200, ge=200, le=10_000)
     document_chunk_overlap_chars: int = Field(default=120, ge=0, le=2_000)

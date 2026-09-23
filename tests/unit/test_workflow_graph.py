@@ -40,6 +40,24 @@ class EmptySearchService:
         return []
 
 
+class InjectedGradeClient:
+    """생성 모델과 분리된 선택형 문서 판정 경계를 검증하는 대역이다."""
+
+    def __init__(self) -> None:
+        """외부 판정 경계 호출 횟수를 0으로 초기화한다."""
+        self.calls = 0
+
+    async def grade_documents(
+        self, question: str, chunks: list[SearchHit]
+    ) -> DocumentGradeOutput:
+        """첫 Chunk를 관련 근거로 선택하고 호출 사실을 기록한다."""
+        self.calls += 1
+        return DocumentGradeOutput(
+            relevant_chunk_ids=[chunks[0].chunk_id],
+            reason="주입된 판정기 결과",
+        )
+
+
 class StaticModelClient:
     """결정적인 의도와 인용 답변을 반환하는 생성 모델 대역이다."""
 
@@ -146,6 +164,25 @@ async def test_workflow_nodes_complete_with_retrieved_citation(
     assert answer.citations[0].chunk_id == CHUNK_ID
     assert "workflow_node_started node=validate_input" in caplog.text
     assert "workflow_node_completed node=generate_answer" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_workflow_uses_injected_document_grade_client() -> None:
+    """관련성 판정만 별도 클라이언트로 교체하고 나머지 생성은 기존 모델을 쓰는지 확인한다."""
+    grade_client = InjectedGradeClient()
+    nodes = WorkflowNodes(
+        search_service=StaticSearchService(),
+        model_client=StaticModelClient(),
+        document_grade_client=grade_client,
+        question_max_chars=100,
+    )
+    state = initial_state()
+    state.update(await nodes.validate_input(state))
+    state.update(await nodes.retrieve_documents(state))
+    state.update(await nodes.grade_documents(state))
+
+    assert grade_client.calls == 1
+    assert state["relevance_passed"] is True
 
 
 @pytest.mark.asyncio

@@ -61,6 +61,12 @@ docker compose up --build -d postgres rabbitmq api outbox-publisher worker
 
 정상 답변은 이번 실행에서 관련성이 통과된 `document_id`와 `chunk_id`만 인용할 수 있다. 민감 질문, 문서 충돌, 근거 부족, 출력 계약 위반은 자동 완료하지 않고 `review_queue`에 남긴다. 구성과 재개 범위는 [Workflow 가이드](docs/WORKFLOW.md), 검토 절차는 [사람 검토 API 가이드](docs/REVIEW.md)에 정리했다.
 
+### 선택형 Jev 관련성 실험
+
+기본 관련성 판정은 계속 로컬 Ollama를 사용한다. 가상 문서로 Jev를 비교할 때만 `.env`의 `WORKFLOW_DOCUMENT_GRADER=jev`와 `AI_GATEWAY_API_KEY`를 설정한다. Jev는 답변을 생성하거나 DB를 변경하지 않고 pgvector가 검색한 Chunk의 직접 관련성과 문서 충돌 확률만 판정한다. 호출 실패 시 기본 설정에서는 로컬 Ollama로 폴백한다.
+
+Vercel이 공지한 Jev 무료 프로모션은 2026-09-25 종료 예정이므로 코드가 그 이후 외부 호출을 차단한다. 이 날짜 이후의 가격과 무료 대상 여부를 다시 확인하기 전에는 날짜를 연장하지 않는다. 실제 회사 문서나 개인정보는 보내지 않는다. 설정과 데이터 경계는 [Jev 선택형 실험 가이드](docs/JEV_EXPERIMENT.md)에 정리했다.
+
 ## 사람 검토
 
 대기 항목은 `GET /api/v1/reviews?status=WAITING`과 `GET /api/v1/reviews/{review_id}`로 조회한다. 검토자는 원 검색 근거를 확인한 뒤 승인, 수정 승인, 재검색, 반려 중 하나를 선택한다. 동일 결정을 다시 보내도 한 번만 적용된다.
