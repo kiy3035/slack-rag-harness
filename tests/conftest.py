@@ -18,6 +18,7 @@ async def clean_database() -> AsyncIterator[AsyncEngine]:
         await connection.execute(
             text(
                 "TRUNCATE TABLE answer_citation, review_queue, "
+                "job_recovery_request, "
                 "knowledge_chunk, knowledge_document, "
                 "job_outbox, ai_job CASCADE"
             )
@@ -30,6 +31,7 @@ async def clean_database() -> AsyncIterator[AsyncEngine]:
             await connection.execute(
                 text(
                     "TRUNCATE TABLE answer_citation, review_queue, "
+                    "job_recovery_request, "
                     "knowledge_chunk, knowledge_document, "
                     "job_outbox, ai_job CASCADE"
                 )

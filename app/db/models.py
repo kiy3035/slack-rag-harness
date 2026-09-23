@@ -71,12 +71,19 @@ class AiJob(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dlq_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    dlq_last_error: Mapped[str | None] = mapped_column(String(100))
+    dlq_next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dlq_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     outbox: Mapped["JobOutbox"] = relationship(back_populates="job", uselist=False)
     reviews: Mapped[list["ReviewQueue"]] = relationship(
         back_populates="job", cascade="all, delete-orphan"
     )
     citations: Mapped[list["AnswerCitation"]] = relationship(
+        back_populates="job", cascade="all, delete-orphan"
+    )
+    recovery_requests: Mapped[list["JobRecoveryRequest"]] = relationship(
         back_populates="job", cascade="all, delete-orphan"
     )
 
@@ -108,6 +115,40 @@ class JobOutbox(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     job: Mapped[AiJob] = relationship(back_populates="outbox")
+
+
+class JobRecoveryRequest(Base):
+    """관리자 수동 재처리 요청과 멱등 키를 감사 가능한 원장으로 저장한다."""
+
+    __tablename__ = "job_recovery_request"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id",
+            "idempotency_key",
+            name="uq_job_recovery_request_job_key",
+        ),
+    )
+
+    recovery_request_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ai_job.job_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    from_status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus, name="job_status", native_enum=True, validate_strings=True),
+        nullable=False,
+    )
+    resulting_workflow_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    job: Mapped[AiJob] = relationship(back_populates="recovery_requests")
 
 
 class KnowledgeDocument(Base):

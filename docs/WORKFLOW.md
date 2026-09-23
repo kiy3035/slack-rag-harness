@@ -33,7 +33,7 @@ Compose 내부에서는 `http://host.docker.internal:11434`로 Ollama에 연결�
 
 통합 테스트는 답변 생성 노드에서 첫 Worker 인스턴스를 실패시킨 뒤 Checkpointer 연결과 그래프를 새로 만들었다. 두 번째 인스턴스가 같은 작업을 재개할 때 의도 분류와 검색은 반복하지 않고 생성 노드만 다시 실행하는지 실제 PostgreSQL Checkpoint로 검증한다.
 
-이 검증은 Workflow 재개 경계를 보장하지만 RabbitMQ의 자동 장애 복구 전체를 뜻하지 않는다. 프로세스가 강제 종료돼 작업이 `PROCESSING`에 남은 경우 재전달 메시지를 언제 다시 선점할지는 Lease와 오류 분류가 필요한 6단계 범위다.
+6단계 Recovery Scheduler는 프로세스가 강제 종료돼 `PROCESSING`에 남은 작업을 `locked_at` Lease로 감지한다. 횟수가 남으면 `RETRY_WAIT`과 Backoff 시각을 저장한 뒤 기존 Outbox를 다시 열고, 새 Worker가 같은 Checkpoint 세대의 실패 노드부터 재개한다. 자세한 상태 전이와 DLQ 정책은 [Worker 장애 복구 가이드](RECOVERY.md)를 따른다.
 
 ## 안전 경계
 

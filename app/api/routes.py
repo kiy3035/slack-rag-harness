@@ -29,10 +29,12 @@ from app.integrations.slack.signature import (
 )
 from app.services.ingestion import IncomingJob, IngestionService
 from app.reviews.api import router as review_router
+from app.recovery.api import router as recovery_router
 
 
 router = APIRouter()
 router.include_router(review_router)
+router.include_router(recovery_router)
 
 
 @router.get("/health/live", response_model=HealthResponse)

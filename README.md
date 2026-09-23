@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 5단계까지이며, 관련성 판정·제한 재검색·출력 검증과 멱등적인 사람 검토 API를 포함한다. 실제 Slack 발신은 아직 포함하지 않는다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 6단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구를 포함한다. 실제 Slack 발신은 아직 포함하지 않는다.
 
 ## 실행
 
@@ -36,7 +36,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/events -Content
 
 RabbitMQ에는 `rag_harness.jobs`, `rag_harness.jobs.retry`, `rag_harness.jobs.dlq` 세 Queue가 선언된다. Retry Queue는 고정 TTL 이후 기본 작업 Queue로 돌아가며, 처리 불가능한 메시지는 DLQ로 분리한다.
 
-`worker`는 메시지를 조건부 선점한 뒤 5단계 LangGraph Workflow를 실행한다. 로컬 생성 모델이 준비되기 전에 작업을 소비하지 않도록 아래의 모델 설치를 먼저 끝내고 서비스를 시작한다.
+`worker`는 메시지를 조건부 선점한 뒤 LangGraph Workflow를 실행한다. 일시 오류는 DB에 Backoff 시각을 저장해 제한 재시도하고, 출력 계약 오류는 사람 검토로, 영구 오류와 재시도 소진은 DLQ로 분리한다. 로컬 생성 모델이 준비되기 전에 작업을 소비하지 않도록 아래의 모델 설치를 먼저 끝내고 서비스를 시작한다.
 
 ## 문서 적재와 검색
 
@@ -75,6 +75,12 @@ Vercel이 공지한 Jev 무료 프로모션은 2026-09-25 종료 예정이므로
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/reviews/{review_id}/reject -ContentType application/json -Body '{"comment":"근거 부족"}'
 ```
 
+## 장애 복구
+
+Worker의 Ollama·DB 일시 오류는 `RETRY_WAIT`에 다음 재시도 시각을 저장하고 Recovery Scheduler가 기존 Outbox를 다시 연다. 강제 종료로 오래 남은 `PROCESSING`도 Lease 만료 후 같은 경로로 복구한다. 영구 오류와 재시도 소진은 `DEAD_LETTER` 상태와 DLQ 발행 완료 시각을 함께 남긴다.
+
+실패 작업의 관리자 수동 재처리 Endpoint는 기본 비활성화이며 로컬에서 `ENABLE_ADMIN_RECOVERY=true`를 설정한 경우에만 사용할 수 있다. 오류 분류, 상태 전이, 환경변수, 장애별 재현 결과는 [Worker 장애 복구 가이드](docs/RECOVERY.md)에 정리했다.
+
 ## 테스트
 
 테스트는 실제 PostgreSQL과 RabbitMQ 컨테이너를 사용하며 Slack 연결이나 유료 API가 필요 없다.
@@ -98,5 +104,6 @@ docker compose exec rabbitmq rabbitmq-diagnostics -q ping
 - Slack 서명은 JSON 파싱 전에 원본 요청 바이트로 검증한다.
 - Timestamp 허용 범위 기본값은 300초다.
 - 운영 Profile에서는 `ENABLE_LOCAL_EVENTS=false`로 로컬 우회 Endpoint를 숨긴다.
+- 운영 공개 전에는 `ENABLE_ADMIN_RECOVERY=false`를 유지하고 관리자 인증·권한 계층을 추가한다.
 
 요구사항 충돌과 결정 근거는 [docs/REQUIREMENTS_REVIEW.md](docs/REQUIREMENTS_REVIEW.md)에 기록했다.

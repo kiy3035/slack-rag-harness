@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.common.config import DocumentGraderProvider, Settings, get_settings
 from app.db.session import build_engine
 from app.messaging.rabbitmq import RabbitBroker
+from app.recovery.errors import RetryPolicy
+from app.recovery.repository import JobRecoveryRepository
+from app.recovery.scheduler import RecoveryScheduler
 from app.retrieval.embedding import OllamaEmbeddingClient
 from app.retrieval.repository import KnowledgeRepository
 from app.retrieval.service import KnowledgeSearchService
@@ -107,13 +110,26 @@ async def run_worker() -> None:
                 repository=repository,
                 runner=WorkflowRunner(graph, repository),
             )
+            retry_policy = RetryPolicy(
+                max_attempts=settings.worker_max_attempts,
+                base_seconds=settings.worker_retry_base_seconds,
+                max_seconds=settings.worker_retry_max_seconds,
+            )
             consumer = RabbitJobConsumer(
                 broker=broker,
-                gate=JobExecutionGate(session_factory),
+                gate=JobExecutionGate(session_factory, retry_policy),
                 handler=handler,
             )
+            recovery_scheduler = RecoveryScheduler(
+                repository=JobRecoveryRepository(session_factory),
+                broker=broker,
+                settings=settings,
+            )
             while True:
-                await consumer.consume_one(timeout=5.0)
+                await recovery_scheduler.process_once()
+                await consumer.consume_one(
+                    timeout=settings.worker_recovery_poll_seconds
+                )
     finally:
         await broker.close()
         await embedding_client.aclose()
