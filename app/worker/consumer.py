@@ -5,13 +5,12 @@ from uuid import UUID
 
 from aio_pika.abc import AbstractIncomingMessage
 from pydantic import ValidationError
-from sqlalchemy import or_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.common.domain import JobStatus
-from app.db.models import AiJob
 from app.messaging.messages import JobMessage
 from app.messaging.rabbitmq import RabbitBroker
+from app.recovery.errors import ErrorClassifier, FailureDecision, RetryPolicy
+from app.recovery.repository import FailureTransition, JobRecoveryRepository
 
 
 JobHandler = Callable[[JobMessage], Awaitable[None]]
@@ -20,55 +19,37 @@ JobHandler = Callable[[JobMessage], Awaitable[None]]
 class JobExecutionGate:
     """최소 한 번 전달되는 메시지를 작업 상태 전이로 한 번만 선점한다."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        """메시지마다 독립 트랜잭션을 만들 세션 팩터리를 주입한다."""
-        self._session_factory = session_factory
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        retry_policy: RetryPolicy | None = None,
+    ) -> None:
+        """복구 저장소와 Worker 실행 재시도 상한을 구성한다."""
+        self._repository = JobRecoveryRepository(session_factory)
+        self._retry_policy = retry_policy or RetryPolicy(
+            max_attempts=3,
+            base_seconds=5,
+            max_seconds=300,
+        )
 
     async def claim(self, job_id: UUID, *, now: datetime) -> bool:
         """RECEIVED 또는 QUEUED 작업만 PROCESSING으로 조건부 전이한다."""
-        async with self._session_factory() as session, session.begin():
-            result = await session.execute(
-                update(AiJob)
-                .where(
-                    AiJob.job_id == job_id,
-                    or_(
-                        AiJob.status == JobStatus.RECEIVED,
-                        AiJob.status == JobStatus.QUEUED,
-                    ),
-                )
-                .values(
-                    status=JobStatus.PROCESSING,
-                    attempt_count=AiJob.attempt_count + 1,
-                    locked_at=now,
-                    started_at=now,
-                )
-            )
-            return result.rowcount == 1
+        return await self._repository.claim(job_id, now=now)
 
-    async def mark_dead_letter(
+    async def record_failure(
         self,
         job_id: UUID,
         *,
         now: datetime,
-        error_code: str,
-    ) -> bool:
-        """선점된 작업의 영구 처리 실패를 검색 가능한 상태로 남긴다."""
-        async with self._session_factory() as session, session.begin():
-            result = await session.execute(
-                update(AiJob)
-                .where(
-                    AiJob.job_id == job_id,
-                    AiJob.status == JobStatus.PROCESSING,
-                )
-                .values(
-                    status=JobStatus.DEAD_LETTER,
-                    failure_code=error_code,
-                    failure_message="Worker 처리기가 메시지를 완료하지 못했습니다.",
-                    locked_at=None,
-                    completed_at=now,
-                )
-            )
-            return result.rowcount == 1
+        decision: FailureDecision,
+    ) -> FailureTransition:
+        """선점된 작업 오류를 정책에 따라 검토·재시도·DLQ 상태로 기록한다."""
+        return await self._repository.record_failure(
+            job_id,
+            decision=decision,
+            policy=self._retry_policy,
+            now=now,
+        )
 
 
 class RabbitJobConsumer:
@@ -79,11 +60,13 @@ class RabbitJobConsumer:
         broker: RabbitBroker,
         gate: JobExecutionGate,
         handler: JobHandler,
+        error_classifier: ErrorClassifier | None = None,
     ) -> None:
-        """Broker·DB 실행 Gate·교체 가능한 작업 Handler를 주입한다."""
+        """Broker·DB 실행 Gate·작업 Handler·오류 분류기를 주입한다."""
         self._broker = broker
         self._gate = gate
         self._handler = handler
+        self._error_classifier = error_classifier or ErrorClassifier()
         self._logger = logging.getLogger(__name__)
 
     async def consume_one(self, *, timeout: float = 5.0) -> bool:
@@ -121,25 +104,20 @@ class RabbitJobConsumer:
         try:
             await self._handler(message)
         except Exception as error:
-            error_code = f"WORKER_{type(error).__name__.upper()}"
-            await self._gate.mark_dead_letter(
-                message.job_id,
-                now=datetime.now(UTC),
-                error_code=error_code,
-            )
-            await self._broker.publish_dead_letter(
-                delivery.body,
-                message_id=delivery.message_id,
-                correlation_id=delivery.correlation_id,
-                error_code=error_code,
+            decision = self._error_classifier.classify(error)
+            transition = await self._gate.record_failure(
+                message.job_id, now=datetime.now(UTC), decision=decision
             )
             await delivery.ack()
-            self._logger.error(
-                "job_message_dead_letter job_id=%s request_id=%s thread_id=%s error_code=%s",
+            self._logger.warning(
+                "job_message_failed job_id=%s request_id=%s thread_id=%s "
+                "failure_kind=%s error_code=%s status=%s",
                 message.job_id,
                 message.request_id,
                 message.thread_id,
-                error_code,
+                decision.kind,
+                transition.error_code,
+                transition.status,
             )
             return
         await delivery.ack()

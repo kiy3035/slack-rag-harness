@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     outbox_max_attempts: int = Field(default=5, ge=1, le=100)
     outbox_retry_base_seconds: int = Field(default=1, ge=1, le=3_600)
     outbox_retry_max_seconds: int = Field(default=60, ge=1, le=86_400)
+    worker_processing_lease_seconds: int = Field(default=900, ge=10, le=86_400)
+    worker_max_attempts: int = Field(default=3, ge=1, le=20)
+    worker_retry_base_seconds: int = Field(default=5, ge=1, le=3_600)
+    worker_retry_max_seconds: int = Field(default=300, ge=1, le=86_400)
+    worker_recovery_batch_size: int = Field(default=20, ge=1, le=500)
+    worker_recovery_poll_seconds: float = Field(default=2.0, ge=0.1, le=60.0)
+    dlq_publish_retry_base_seconds: int = Field(default=5, ge=1, le=3_600)
+    dlq_publish_retry_max_seconds: int = Field(default=300, ge=1, le=86_400)
+    enable_admin_recovery: bool = False
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_generation_model: str = "qwen3:1.7b"

@@ -681,3 +681,105 @@ git diff --check
 ### 다음 작업
 
 사용자 확인 후에만 6단계 오류 분류·제한 재시도·자동 복구를 구현한다.
+
+## 2026-09-23 — 6단계 장애 복구 완료
+
+### 현재 단계
+
+- 0~5단계: 완료
+- 5A단계 선택형 Jev 관련성 실험: 완료
+- 6단계 오류 분류·제한 재시도·자동 복구: 완료
+- 7단계 이후: 미구현(현재 브랜치 범위 밖)
+
+### 5A단계 병합
+
+- GitHub PR #5 병합 결과를 `origin/main`에서 가져왔다.
+- 병합 커밋: `2ee5f77`
+- 최신 `main`에서 `codex/stage-6-recovery` 브랜치를 생성했다.
+
+### 설계 경계
+
+- Worker 예외 원문을 저장하지 않고 타입 기반 오류 코드와 짧은 안전 문구만 DB·로그에 남긴다.
+- Ollama timeout·HTTP 실패와 PostgreSQL 연결 오류는 일시 오류, 생성 모델 구조화 출력 위반은 사람 검토 필요, 입력·임베딩 계약 위반과 예상하지 못한 오류는 영구 오류로 분리한다.
+- 일시 오류는 `PROCESSING → RETRY_WAIT`으로 전이하고 작업 실행 횟수 기반 지수 Backoff를 적용한다. 시각이 지나면 고유 Outbox를 `READY`로 다시 열어 같은 Workflow 세대 Checkpoint에서 재개한다.
+- Worker 강제 종료는 `locked_at` Lease 만료로 감지한다. 기본 Lease 900초는 기본 Ollama 생성 timeout보다 길게 두고 테스트에서만 짧게 덮어쓴다.
+- 재시도 소진과 영구 오류는 `DEAD_LETTER` 상태를 먼저 저장한다. DLQ 발행은 별도 Lease, 실패 횟수, 다음 재시도 시각, Publisher Confirm 완료 시각으로 복구한다.
+- DLQ Confirm 성공 직후 DB 기록 전에 종료되는 극단적인 구간에는 동일 `message_id`가 중복될 수 있으므로 DLQ 소비자는 멱등해야 한다.
+- 관리자 수동 재처리는 기본 비활성화다. `FAILED/DEAD_LETTER`만 허용하고 작업별 `idempotency_key`를 `job_recovery_request`에 저장해 Workflow 세대를 한 번만 올린다.
+- 수동 재처리 Endpoint는 로컬 장애 조치용이며 외부 공개 전 인증·권한 계층이 필요하다.
+
+### 완료 항목
+
+- `FailureKind`, `FailureDecision`, `ErrorClassifier`, `RetryPolicy`
+- Worker Consumer의 일시 오류 Backoff, 출력 오류 검토 전환, 영구·소진 오류 DLQ 전환
+- `RETRY_WAIT` 만기 작업의 기존 Outbox 원자적 재개
+- 오래된 `PROCESSING` 작업의 Lease 복구와 최대 횟수 제한
+- DB 원장 기반 미발행 DLQ 선점·발행·실패 Backoff·Publisher Confirm 기록
+- 모델 출력 계약 오류의 빈 근거 `review_queue` 생성과 무한 재시도 차단
+- `POST /api/v1/admin/jobs/{job_id}/retry` 멱등 수동 재처리 Endpoint
+- DLQ 상태 열, 복구 조회 인덱스, `job_recovery_request` Migration `0005`
+- Worker에 Recovery Scheduler 연결과 모든 복구 임계값 환경변수 분리
+- `docs/RECOVERY.md`, README, 아키텍처, Workflow 문서 갱신
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test
+결과: 81 passed in 4.80s
+
+docker compose --profile test run --rm --no-deps test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm --no-deps test python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+검증 범위:
+
+- 일시 오류: 실제 RabbitMQ Consumer의 Fake Ollama timeout을 `RETRY_WAIT`으로 저장한 뒤 ACK하고 Queue에 중복 메시지가 남지 않음
+- Backoff: 첫 실패 5초 전에는 재개하지 않고 만기 시 기존 Outbox를 `READY`로 다시 엶
+- 검토 필요: 잘못된 모델 JSON을 `MODEL_OUTPUT_INVALID` 검토 항목 한 건으로 전환
+- Worker 종료: 오래된 `PROCESSING`의 제한 복구와 횟수 소진 시 `DEAD_LETTER` 전환
+- DLQ 연결: 실제 RabbitMQ DLQ Header와 DB `dlq_published_at`을 함께 확인
+- 수동 복구: 같은 관리자 멱등 키를 두 번 보내도 Workflow 세대가 한 번만 증가하고 복구 원장 한 건만 생성
+- DB 오류: SQLAlchemy 연결 오류를 일시 오류로 분류하고 ACK 전 DB 상태 저장을 강제
+- 중복 메시지: 기존 실제 RabbitMQ 통합 테스트가 Handler 한 번 실행을 계속 보장
+- 회귀: Slack 서명·접수, Outbox, RabbitMQ, 검색, LangGraph Checkpoint, 검토 API, Jev 선택형 실험 포함 전체 테스트 통과
+
+### Migration과 실제 서비스 검증
+
+```text
+alembic downgrade 0004
+결과: 0005 → 0004 성공
+
+alembic upgrade head
+결과: 0004 → 0005 성공
+
+docker compose up --build -d api outbox-publisher worker
+결과: api healthy, postgres/rabbitmq healthy, outbox-publisher/worker running
+
+SELECT version_num FROM alembic_version
+결과: 0005
+```
+
+- 개발 DB에 이전 단계에서 보존된 `DEAD_LETTER/WORKER_INTEGRITYERROR` 작업 2건이 있었다.
+- 6단계 Worker 시작 시 두 건을 미발행 DLQ 대상으로 선점해 실제 RabbitMQ DLQ에 발행하고 `dlq_published_at`을 기록했다.
+- `ENABLE_ADMIN_RECOVERY=false` 상태에서 실제 관리자 재처리 요청이 `404 NOT_FOUND`를 반환하는 것을 확인했다.
+
+### 남은 제한 사항
+
+- PostgreSQL 컨테이너를 실제 중단하는 파괴적 장애 주입은 전체 테스트 실행 중 다른 검증을 방해하므로 자동 테스트에서는 SQLAlchemy 연결 오류 분류와 ACK 전 상태 저장 경계로 검증했다.
+- RabbitMQ가 Outbox 최대 발행 횟수 동안 복구되지 않으면 기존 2단계 정책대로 작업은 `FAILED`에 남고 관리자 수동 재처리가 필요하다.
+- DLQ는 최소 한 번 발행 계약이므로 Confirm 성공과 DB 기록 사이의 종료 시 중복 가능성이 남는다.
+- 관리자 수동 재처리 API는 로컬 전용이며 인증·권한·관리자 신원 감사는 운영 공개 전에 추가해야 한다.
+- 실제 Slack Thread 발신과 무료 Workspace 화면 E2E는 7단계 범위다.
+
+### 다음 작업
+
+사용자 확인 후에만 7단계 실제 Slack 연동과 Thread 답변 발신을 구현한다.
