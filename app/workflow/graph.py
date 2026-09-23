@@ -10,7 +10,11 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.common.domain import JobStatus
 from app.retrieval.schemas import SearchHit
-from app.workflow.model import WorkflowModelClient, WorkflowModelResponseError
+from app.workflow.model import (
+    DocumentGradeClient,
+    WorkflowModelClient,
+    WorkflowModelResponseError,
+)
 from app.workflow.schemas import (
     AnswerOutput,
     ReviewReasonCode,
@@ -130,16 +134,18 @@ class WorkflowNodes:
         question_max_chars: int,
         max_query_rewrites: int = 1,
         max_generation_attempts: int = 2,
+        document_grade_client: DocumentGradeClient | None = None,
         answer_validator: AnswerValidator | None = None,
         relevance_validator: RelevanceValidator | None = None,
         monotonic_clock: Callable[[], float] = perf_counter,
     ) -> None:
-        """외부 경계와 재시도 상한, 교체 가능한 검증기·시계를 주입한다."""
+        """외부 경계와 재시도 상한, 교체 가능한 판정기·검증기·시계를 주입한다."""
         self._search_service = search_service
         self._model_client = model_client
         self._question_max_chars = question_max_chars
         self._max_query_rewrites = max_query_rewrites
         self._max_generation_attempts = max_generation_attempts
+        self._document_grade_client = document_grade_client or model_client
         self._answer_validator = answer_validator or AnswerValidator()
         self._relevance_validator = relevance_validator or RelevanceValidator()
         self._clock = monotonic_clock
@@ -286,7 +292,7 @@ class WorkflowNodes:
             grade_invalid = False
         else:
             try:
-                grade = await self._model_client.grade_documents(
+                grade = await self._document_grade_client.grade_documents(
                     state["normalized_question"], chunks
                 )
             except WorkflowModelResponseError:

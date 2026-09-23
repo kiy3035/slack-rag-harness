@@ -1,10 +1,11 @@
 import asyncio
+from datetime import date
 import logging
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.common.config import get_settings
+from app.common.config import DocumentGraderProvider, Settings, get_settings
 from app.db.session import build_engine
 from app.messaging.rabbitmq import RabbitBroker
 from app.retrieval.embedding import OllamaEmbeddingClient
@@ -12,7 +13,8 @@ from app.retrieval.repository import KnowledgeRepository
 from app.retrieval.service import KnowledgeSearchService
 from app.worker.consumer import JobExecutionGate, RabbitJobConsumer
 from app.workflow.graph import WorkflowNodes, build_workflow_graph
-from app.workflow.model import OllamaWorkflowModelClient
+from app.workflow.jev import FallbackDocumentGradeClient, JevDocumentGradeClient
+from app.workflow.model import DocumentGradeClient, OllamaWorkflowModelClient
 from app.workflow.repository import WorkflowRepository
 from app.workflow.service import WorkflowJobHandler, WorkflowRunner
 
@@ -23,6 +25,36 @@ def configure_logging() -> None:
         level=logging.INFO,
         format="%(asctime)s level=%(levelname)s logger=%(name)s %(message)s",
     )
+
+
+def build_document_grade_client(
+    settings: Settings,
+    model_client: OllamaWorkflowModelClient,
+    current_date: date | None = None,
+) -> tuple[DocumentGradeClient, JevDocumentGradeClient | None]:
+    """설정과 무료 종료일을 확인해 안전한 관련성 판정기와 Jev 자원을 만든다."""
+    if settings.workflow_document_grader != DocumentGraderProvider.JEV:
+        return model_client, None
+    effective_date = current_date or date.today()
+    if effective_date > settings.jev_free_use_not_after:
+        logging.getLogger(__name__).warning(
+            "jev_disabled_free_period_ended not_after=%s",
+            settings.jev_free_use_not_after.isoformat(),
+        )
+        return model_client, None
+
+    jev_client = JevDocumentGradeClient(
+        base_url=settings.jev_base_url,
+        api_key=settings.ai_gateway_api_key,
+        model=settings.jev_model,
+        timeout_seconds=settings.jev_timeout_seconds,
+        relevance_threshold=settings.jev_relevance_threshold,
+        conflict_threshold=settings.jev_conflict_threshold,
+    )
+    document_grade_client: DocumentGradeClient = jev_client
+    if settings.jev_fallback_to_ollama:
+        document_grade_client = FallbackDocumentGradeClient(jev_client, model_client)
+    return document_grade_client, jev_client
 
 
 async def run_worker() -> None:
@@ -43,6 +75,9 @@ async def run_worker() -> None:
         model=settings.ollama_generation_model,
         timeout_seconds=settings.ollama_generation_timeout_seconds,
     )
+    document_grade_client, jev_client = build_document_grade_client(
+        settings, model_client
+    )
     broker = RabbitBroker(settings)
     try:
         await broker.connect()
@@ -61,6 +96,7 @@ async def run_worker() -> None:
             question_max_chars=settings.workflow_question_max_chars,
             max_query_rewrites=settings.workflow_max_query_rewrites,
             max_generation_attempts=settings.workflow_max_generation_attempts,
+            document_grade_client=document_grade_client,
         )
         async with AsyncPostgresSaver.from_conn_string(
             settings.checkpoint_database_url
@@ -82,6 +118,8 @@ async def run_worker() -> None:
         await broker.close()
         await embedding_client.aclose()
         await model_client.aclose()
+        if jev_client is not None:
+            await jev_client.aclose()
         await engine.dispose()
 
 

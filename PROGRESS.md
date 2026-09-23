@@ -607,3 +607,77 @@ git diff --check
 ### 다음 작업
 
 사용자 확인 후에만 6단계 오류 분류·제한 재시도·자동 복구를 구현한다.
+
+## 2026-09-23 — 5A단계 선택형 Jev 관련성 실험 완료
+
+### 현재 단계
+
+- 0~5단계: 완료
+- 5A단계 선택형 Jev 관련성 실험: 완료
+- 6단계 이후: 미구현(현재 브랜치 범위 밖)
+
+### 설계 경계와 무료 실행 보장
+
+- 기본 관련성 판정은 계속 로컬 Ollama이며 `WORKFLOW_DOCUMENT_GRADER=jev`를 명시한 경우에만 Jev를 선택한다.
+- Jev는 pgvector 검색 후보의 Chunk별 직접 관련성과 문서 충돌 확률만 판정한다. 답변 생성, DB 쓰기, 최종 완료 여부 결정 권한은 주지 않는다.
+- 외부 판정 뒤에도 기존 검색 Chunk ID 허용목록, 질문 핵심어, 인용 Schema 검증을 그대로 적용한다.
+- Jev timeout, HTTP 오류, 응답 계약 위반은 기본 설정에서 로컬 Ollama 판정으로 폴백한다.
+- Vercel 공식 모델 페이지에서 2026-09-25까지 무료 프로모션임을 2026-09-23 재확인했다. 그 다음 날부터 외부 호출을 차단하며 환경변수만으로 검증된 종료일을 늦출 수 없다.
+- 자동 테스트는 API Key나 외부 네트워크 없이 `httpx.MockTransport`와 가상 운영 문서로만 실행한다.
+
+### 완료 항목
+
+- 답변 생성 Client와 분리된 `DocumentGradeClient` 경계
+- Vercel 공개 Evaluation HTTP API `POST /v1/evaluate` 요청·응답 Pydantic Schema
+- 여러 Chunk 관련성과 문서 충돌을 한 요청에서 판정하고 설정 임계값으로 변환
+- Secret 환경변수 주입, 빈 Key 차단, 질문·문서·Secret 비로그 정책
+- 외부 장애 시 로컬 Ollama 폴백과 오류 종류만 남기는 안전 로그
+- 확인된 무료 종료일 이후 로컬 판정 자동 선택과 종료일 상한 검증
+- Worker 자원 생성·종료와 Workflow 의존성 주입 연결
+- `.env.example`, Compose, README, 아키텍처, Workflow, 요구사항 검토, 실험 가이드 갱신
+
+### 공식 문서 대조에서 수정한 사항
+
+- 최초 작업 트리는 SDK 내부용 `/v4/ai/evaluation-model` 규격과 전용 Header를 사용하고 있었다.
+- Vercel 공식 Evaluation 문서가 공개 HTTP 경계로 `/v1/evaluate`와 본문의 `model`, `state`, `questions`를 명시하는 것을 확인했다.
+- 내부 구현 복제 대신 공개 API 계약으로 교체하고 URL, 본문, Authorization Header를 Mock 계약 테스트로 고정했다.
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test pytest -q tests/unit/test_jev_document_grader.py tests/unit/test_worker_main.py tests/unit/test_workflow_graph.py
+결과: 15 passed in 0.54s
+
+docker compose --profile test run --rm test
+결과: 74 passed in 3.45s
+
+docker compose --profile test run --rm --no-deps test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm --no-deps test python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+검증 범위:
+
+- 정상: 공개 HTTP 요청 계약, 확률 임계값 변환, Workflow의 별도 판정 Client 사용
+- 경계: 무료 종료일 당일까지 Jev 선택, 다음 날 로컬 선택, 환경변수 종료일 연장 거부
+- 실패: 빈 API Key, 응답 누락·Schema 위반, timeout, Jev 오류 뒤 로컬 폴백
+- 보안: 성공·폴백 로그에 질문, Chunk 본문, Secret을 남기지 않음
+- 회귀: PostgreSQL, pgvector, RabbitMQ, Slack 수신, LangGraph Checkpoint, 검토 API를 포함한 기존 0~5단계 전체 테스트
+
+### 남은 제한 사항
+
+- 실제 Jev API Key를 저장소나 로그에 주입하지 않았으므로 실제 외부 호출은 실행하지 않았다. 공개 HTTP 계약은 공식 문서 대조와 Mock Transport로 검증했다.
+- Jev 무료 프로모션은 2026-09-25 종료 예정이므로 장기 기본 경로로 사용할 수 없다. 기본 Ollama Workflow는 영향을 받지 않는다.
+- Jev와 Ollama의 대표 질문별 정확도 비교는 고정 평가 데이터셋을 만드는 9단계에서 측정해야 한다. 측정 전에는 Jev 확률을 품질 개선 근거로 단정하지 않는다.
+
+### 다음 작업
+
+사용자 확인 후에만 6단계 오류 분류·제한 재시도·자동 복구를 구현한다.

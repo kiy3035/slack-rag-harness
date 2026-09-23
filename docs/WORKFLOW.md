@@ -47,6 +47,14 @@ Compose 내부에서는 `http://host.docker.internal:11434`로 Ollama에 연결�
 - Ollama timeout과 HTTP 실패, 구조화 출력 위반, 허용되지 않은 인용은 성공으로 저장하지 않는다.
 - `review_queue` 결정은 행 잠금과 조건부 상태 변경으로 중복 적용을 막는다.
 
+## 선택형 Jev 관련성 판정
+
+기본값 `WORKFLOW_DOCUMENT_GRADER=ollama`는 외부 호출이 없는 기존 흐름이다. `jev`를 명시하면 pgvector 검색 뒤 `grade_documents`만 Vercel AI Gateway의 `typesafe-ai/jev`로 교체한다. 의도 분류, 검색어 재작성, 답변 생성은 계속 로컬 Qwen이 담당한다.
+
+Jev에는 사용자 질문과 저장소의 가상 검색 Chunk 본문이 전송된다. 각 Chunk가 질문의 답을 직접 뒷받침하는지와 Chunk끼리 핵심 조건에서 충돌하는지를 한 요청에서 확률로 판정한다. 확률은 각각 `JEV_RELEVANCE_THRESHOLD`, `JEV_CONFLICT_THRESHOLD`와 비교한다. 그 뒤에도 검색된 Chunk ID 허용목록과 코드 기반 핵심어 검증을 통과해야 자동 답변 근거가 된다.
+
+`AI_GATEWAY_API_KEY`가 없으면 Jev Client 생성 단계에서 실패한다. 런타임 timeout, HTTP 오류, 응답 계약 위반은 `JEV_FALLBACK_TO_OLLAMA=true`일 때 로컬 판정으로 폴백하고 오류 종류만 로그에 남긴다. Vercel 공식 모델 페이지에서 확인한 무료 프로모션 종료일은 2026-09-25이며, `JEV_FREE_USE_NOT_AFTER` 이후에는 Jev 설정이 있어도 외부 호출하지 않는다.
+
 ## 실행
 
 생성 모델이 준비된 뒤 Worker를 포함해 서비스를 시작한다.
