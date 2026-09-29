@@ -889,3 +889,115 @@ SELECT version_num FROM alembic_version
 ### 다음 작업
 
 사용자가 `docs/SLACK_SETUP.md`에 따라 무료 Workspace와 로컬 Secret을 설정하면 실제 Slack PC 앱 E2E를 완료한다. 이후 8단계 관측 화면을 구현한다.
+
+## 2026-09-29 — 8단계 관측 화면 구현 완료
+
+### 현재 단계
+
+- 0~8단계: 구현 완료
+- 7단계 무료 Slack Workspace 화면 E2E: 사용자 로컬 설정 대기
+- 9단계 이후: 미구현(현재 브랜치 범위 밖)
+
+### 7단계 병합
+
+- GitHub PR #7이 `main`에 병합된 것을 확인했다.
+- 병합 커밋 `aff91ec`에서 `codex/stage-8-observability` 브랜치를 생성했다.
+
+### 설계 경계
+
+- PostgreSQL의 작업·검토 상태를 원장으로 유지하고 Prometheus Scrape 시점에 상태별 Gauge를 집계한다.
+- API 요청은 실제 Route Template을 Label로 사용해 동적 ID에 따른 고카디널리티를 피한다.
+- API, Worker, Outbox Publisher는 각각 독립 메트릭 Endpoint를 제공한다.
+- Workflow 전체·노드·Ollama 호출시간은 Histogram으로 기록하며 임의의 성능 수치를 문서에 기입하지 않는다.
+- JSON 로그 Formatter는 허용된 상관관계·상태·오류 필드만 기록하고 질문, 답변, 문서 본문, Token과 예외 원문을 제외한다.
+- 최소 관리 화면은 식별자·상태·시도 횟수·안전한 사유 코드와 시각만 보여 주며 질문·답변·검토 의견은 노출하지 않는다.
+- 관리 화면은 애플리케이션 기본값에서 비활성화하고 로컬 Compose만 활성화한다.
+- Grafana·Prometheus·Loki·RabbitMQ 메트릭 포트는 `127.0.0.1`에만 바인딩한다.
+- Grafana의 원격 사용 통계, 업데이트 확인, 기본 Plugin 설치와 자동 업데이트를 비활성화한다.
+
+### 완료 항목
+
+- `prometheus-client` 기반 API 요청량·지연, 작업·검토 상태, Workflow·노드·Ollama 지연, Outbox·복구·DLQ 메트릭
+- RabbitMQ `rabbitmq_prometheus` Plugin과 Queue 메트릭 Endpoint
+- Prometheus 7일 로컬 보관과 API·Worker·Outbox·RabbitMQ Target 구성
+- 10개 패널의 `Slack RAG Harness 관측` Grafana Dashboard 자동 Provisioning
+- Alloy의 공유 JSON 로그 Tail과 Loki 전달
+- 최근 작업과 검토 대기 상태를 표시하는 `/admin` 최소 관리 화면
+- 관리 화면·메트릭·로그 보안 경계를 검증하는 단위·통합 테스트
+- `docs/OBSERVABILITY.md`, README, 프로젝트 개요, 아키텍처 문서 갱신
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test
+첫 실행 결과: 기존 RabbitMQ Retry Queue 도착 2초 경계에서 1건 일시 실패, 95 passed
+
+docker compose --profile test run --rm test pytest -q tests/integration/test_stage2_messaging.py::test_retry_and_dead_letter_queues_route_messages
+결과: 1 passed in 0.45s
+
+docker compose --profile test run --rm test
+최종 결과: 96 passed in 6.26s
+
+docker compose --profile test run --rm --no-deps test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm --no-deps test python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+첫 전체 실행의 실패는 같은 Image와 Broker에서 해당 테스트를 즉시 단독 실행하고 전체 Suite를 다시 실행했을 때 재현되지 않았다. 검증 기준이나 Timeout은 변경하지 않았다.
+
+### 실제 서비스 검증
+
+```text
+docker compose up --build -d
+결과: API healthy, PostgreSQL/RabbitMQ healthy, Worker/Outbox/Prometheus/Grafana/Loki/Alloy 실행 중
+
+GET /health/ready
+결과: ok
+
+GET /admin
+결과: HTTP 200
+
+GET /metrics
+결과: API와 DB 집계 메트릭 노출
+
+Prometheus /api/v1/targets
+결과: rabbitmq, slack-rag-api, slack-rag-worker, slack-rag-outbox 모두 up
+
+RabbitMQ /metrics
+결과: rabbitmq_queue_messages_ready 노출
+
+Loki /ready 및 API 로그 Query
+결과: ready, api Stream 1개 이상 확인
+
+Grafana /api/health 및 Dashboard API
+결과: database ok, `Slack RAG Harness 관측` 10개 패널 확인
+```
+
+### 무료·로컬 구성
+
+- `prometheus-client==0.26.0`: Apache-2.0/BSD-2-Clause
+- `prom/prometheus:v3.14.0`: Apache-2.0
+- `grafana/grafana:13.1.6`: AGPL-3.0
+- `grafana/loki:3.7.7`: AGPL-3.0
+- `grafana/alloy:v1.20.0`: Apache-2.0
+- 모든 구성은 로컬 Docker Compose에서 실행하며 유료 API와 관리형 관측 서비스를 사용하지 않는다.
+
+### 남은 제한 사항
+
+- `/admin`은 최소 로컬 화면이며 사용자 인증·권한·감사 기능이 없다. 외부 공개 전에는 비활성 상태를 유지해야 한다.
+- Grafana 기본 계정은 로컬 예시이므로 외부 접근 환경에서는 비밀번호 변경과 별도 접근 통제가 필요하다.
+- Loki는 단일 로컬 인스턴스이며 고가용성·원격 백업을 제공하지 않는다.
+- 실제 Slack PC 앱 화면 E2E는 7단계에서와 같이 사용자 Workspace Secret 설정을 기다린다.
+- 성능 수치는 아직 측정하지 않았으며 9단계 평가와 10단계 부하 테스트에서 실행 환경과 함께 기록한다.
+
+### 다음 작업
+
+8단계 PR 병합 후 9단계 평가 하네스를 별도 브랜치와 PR로 구현한다.

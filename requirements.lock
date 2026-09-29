@@ -37,6 +37,7 @@ ormsgpack==1.12.2
 packaging==26.3
 pamqp==3.3.0
 pluggy==1.6.0
+prometheus-client==0.26.0
 propcache==0.5.4
 psycopg==3.3.6
 psycopg-binary==3.3.6

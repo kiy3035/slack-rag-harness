@@ -1,0 +1,114 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"title": "최소 관리 화면", "type": "link", "url": "http://localhost:8000/admin", "targetBlank": true}
+  ],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "sum(rate(rag_harness_api_requests_total[5m])) by (route)", "legendFormat": "{{route}}", "refId": "A"}],
+      "title": "API 요청량",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(rag_harness_api_request_duration_seconds_bucket[5m])) by (le, route))", "legendFormat": "p95 {{route}}", "refId": "A"}],
+      "title": "API p95 응답시간",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [{"expr": "rag_harness_jobs", "legendFormat": "{{status}}", "refId": "A"}],
+      "title": "작업 상태별 건수",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "id": 4,
+      "targets": [{"expr": "rabbitmq_queue_messages_ready{queue=~\"rag_harness.jobs.*\"}", "legendFormat": "{{queue}}", "refId": "A"}],
+      "title": "RabbitMQ Queue Depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "id": 5,
+      "targets": [{"expr": "rag_harness_review_queue{status=\"WAITING\"}", "legendFormat": "WAITING", "refId": "A"}],
+      "title": "검토 큐 적체량",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 6,
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(rag_harness_workflow_duration_seconds_bucket[5m])) by (le, status))", "legendFormat": "p95 {{status}}", "refId": "A"}],
+      "title": "전체 처리시간",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 7,
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(rag_harness_workflow_node_duration_seconds_bucket[5m])) by (le, node))", "legendFormat": "p95 {{node}}", "refId": "A"}],
+      "title": "노드별 처리시간",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 8,
+      "targets": [
+        {"expr": "sum(rate(rag_harness_recovery_events_total[5m])) by (outcome)", "legendFormat": "retry {{outcome}}", "refId": "A"},
+        {"expr": "sum(rate(rag_harness_dlq_events_total[5m])) by (outcome)", "legendFormat": "dlq {{outcome}}", "refId": "B"},
+        {"expr": "sum(rate(rag_harness_outbox_events_total[5m])) by (outcome)", "legendFormat": "outbox {{outcome}}", "refId": "C"}
+      ],
+      "title": "재시도 및 DLQ 건수",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 9,
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(rag_harness_ollama_call_duration_seconds_bucket[5m])) by (le, operation))", "legendFormat": "p95 {{operation}}", "refId": "A"}],
+      "title": "Ollama 호출시간",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 32},
+      "id": 10,
+      "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [{"expr": "{service=~\"api|worker|outbox-publisher\"} | json", "refId": "A"}],
+      "title": "구조화 로그",
+      "type": "logs"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["slack-rag-harness", "local"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "Slack RAG Harness 관측",
+  "uid": "slack-rag-harness",
+  "version": 1
+}

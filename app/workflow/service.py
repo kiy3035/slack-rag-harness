@@ -1,10 +1,12 @@
 from typing import cast
+from time import perf_counter
 from uuid import UUID
 
 from langgraph.graph.state import CompiledStateGraph
 
 from app.common.domain import JobStatus
 from app.messaging.messages import JobMessage
+from app.observability.metrics import observe_workflow
 from app.retrieval.schemas import SearchHit
 from app.workflow.repository import WorkflowRepository
 from app.workflow.schemas import (
@@ -33,19 +35,28 @@ class WorkflowRunner:
 
     async def run(self, request: WorkflowRequest) -> WorkflowResult:
         """같은 thread_id의 Checkpoint를 재사용해 완료 결과를 멱등하게 저장한다."""
-        config = self._build_config(request.thread_id)
-        snapshot = await self._graph.aget_state(config)
-        if snapshot.values and not snapshot.next and snapshot.values.get("final_status"):
-            state = cast(WorkflowState, snapshot.values)
-        else:
-            graph_input = None if snapshot.values else request.to_state()
-            state = cast(
-                WorkflowState,
-                await self._graph.ainvoke(graph_input, config=config),
+        started_at = perf_counter()
+        outcome = "failed"
+        try:
+            config = self._build_config(request.thread_id)
+            snapshot = await self._graph.aget_state(config)
+            if snapshot.values and not snapshot.next and snapshot.values.get("final_status"):
+                state = cast(WorkflowState, snapshot.values)
+            else:
+                graph_input = None if snapshot.values else request.to_state()
+                state = cast(
+                    WorkflowState,
+                    await self._graph.ainvoke(graph_input, config=config),
+                )
+            result = self._build_result(state)
+            await self._repository.record_outcome(result)
+            outcome = result.status.value
+            return result
+        finally:
+            observe_workflow(
+                status=outcome,
+                duration_seconds=perf_counter() - started_at,
             )
-        result = self._build_result(state)
-        await self._repository.record_outcome(result)
-        return result
 
     def _build_config(self, thread_id: str) -> GraphConfig:
         """LangGraph Checkpoint 조회에 사용할 안정적인 실행 식별자를 만든다."""

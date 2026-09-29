@@ -7,6 +7,7 @@ import logging
 from app.common.config import Settings
 from app.messaging.messages import JobMessage
 from app.messaging.rabbitmq import RabbitBroker
+from app.observability.metrics import record_outbox_cycle
 from app.outbox.repository import OutboxRepository
 
 
@@ -95,13 +96,20 @@ class OutboxPublisher:
                     claim.request_id,
                     claim.thread_id,
                 )
-        return PublishCycleResult(
+        result = PublishCycleResult(
             claimed=len(claims),
             sent=sent,
             failed=failed,
             exhausted=exhausted,
             recovered=recovered,
         )
+        record_outbox_cycle(
+            sent=result.sent,
+            failed=result.failed,
+            exhausted=result.exhausted,
+            recovered=result.recovered,
+        )
+        return result
 
     async def run(self, stop_event: asyncio.Event) -> None:
         """중단 신호까지 제한된 간격으로 발행 주기를 반복한다."""

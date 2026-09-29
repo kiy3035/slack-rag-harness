@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Slack RAG Harness
+    orgId: 1
+    folder: Local Harness
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

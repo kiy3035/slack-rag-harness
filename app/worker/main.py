@@ -6,11 +6,13 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.common.config import DocumentGraderProvider, Settings, get_settings
+from app.common.logging import configure_structured_logging
 from app.db.session import build_engine
 from app.integrations.slack.client import SlackWebClient
 from app.integrations.slack.publisher import SlackReplyPublisher
 from app.integrations.slack.repository import SlackReplyRepository
 from app.messaging.rabbitmq import RabbitBroker
+from app.observability.metrics import start_metrics_server
 from app.recovery.errors import RetryPolicy
 from app.recovery.repository import JobRecoveryRepository
 from app.recovery.scheduler import RecoveryScheduler
@@ -23,14 +25,6 @@ from app.workflow.jev import FallbackDocumentGradeClient, JevDocumentGradeClient
 from app.workflow.model import DocumentGradeClient, OllamaWorkflowModelClient
 from app.workflow.repository import WorkflowRepository
 from app.workflow.service import WorkflowJobHandler, WorkflowRunner
-
-
-def configure_logging() -> None:
-    """Worker 노드 진행과 실패 로그가 표준 출력에 보이도록 INFO 로그를 설정한다."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s level=%(levelname)s logger=%(name)s %(message)s",
-    )
 
 
 def build_document_grade_client(
@@ -166,7 +160,10 @@ async def run_worker() -> None:
 
 def main() -> None:
     """비동기 Worker 수명 주기를 단일 이벤트 루프로 실행한다."""
-    configure_logging()
+    settings = get_settings()
+    configure_structured_logging("worker", settings.log_directory)
+    if settings.metrics_enabled:
+        start_metrics_server(settings.metrics_port)
     asyncio.run(run_worker())
 
 

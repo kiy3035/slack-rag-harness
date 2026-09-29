@@ -6,6 +6,7 @@ import logging
 from app.common.config import Settings
 from app.messaging.messages import JobMessage
 from app.messaging.rabbitmq import RabbitBroker
+from app.observability.metrics import record_recovery_cycle
 from app.recovery.errors import RetryPolicy
 from app.recovery.repository import JobRecoveryRepository
 
@@ -115,7 +116,7 @@ class RecoveryScheduler:
                     claim.thread_id,
                     claim.error_code,
                 )
-        return RecoveryCycleResult(
+        result = RecoveryCycleResult(
             retries_released=retries_released,
             stale_retried=stale.retried,
             stale_exhausted=stale.exhausted,
@@ -123,6 +124,14 @@ class RecoveryScheduler:
             dlq_published=published,
             dlq_failed=failed,
         )
+        record_recovery_cycle(
+            retries_released=result.retries_released,
+            stale_retried=result.stale_retried,
+            stale_exhausted=result.stale_exhausted,
+            dlq_published=result.dlq_published,
+            dlq_failed=result.dlq_failed,
+        )
+        return result
 
     def _dlq_backoff_seconds(self, attempt_count: int) -> int:
         """DLQ 발행 실패가 RabbitMQ를 압박하지 않도록 지수 Backoff를 계산한다."""

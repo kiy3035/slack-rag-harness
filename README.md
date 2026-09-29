@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 7단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구와 실제 Slack Thread 발신을 포함한다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 8단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신과 로컬 관측 환경을 포함한다.
 
 ## 실행
 
@@ -10,7 +10,7 @@ Docker Desktop과 Docker Compose가 필요하다. 호스트 Python은 필요하�
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build -d postgres rabbitmq api outbox-publisher
+docker compose up --build -d
 docker compose ps
 Invoke-RestMethod http://localhost:8000/health/ready
 ```
@@ -87,6 +87,16 @@ Slack Events API는 서명 검증과 중복 방지 후 3초 안에 ACK하고, AI
 
 실제 Workspace를 연결할 때만 `.env`에 `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_REPLY_ENABLED=true`를 설정한다. Slack API 429의 `Retry-After`와 일시 오류는 제한 재시도하며, 영구 오류나 재시도 소진은 `FAIL` 상태와 안전한 오류 코드로 남는다. App 생성, Scope, Event Subscription, 무료 Quick Tunnel과 화면 E2E 절차는 [Slack 설정 가이드](docs/SLACK_SETUP.md)에 정리했다.
 
+## 관측 화면
+
+전체 Compose를 시작하면 Prometheus가 API·Worker·Outbox Publisher·RabbitMQ를 수집하고, Grafana의 `Slack RAG Harness 관측` Dashboard에서 요청량과 p95, 상태별 작업 수, Queue 적체, Workflow·Ollama 지연, 재시도·DLQ, 검토 대기량을 확인할 수 있다. Alloy는 질문·답변 원문을 제외한 JSON 로그를 Loki로 전달한다.
+
+- 최소 관리 화면: `http://localhost:8000/admin`
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+
+관리 화면은 로컬 Compose에서만 기본 활성화하며 인증 기능이 없다. 외부에 공개하지 말고 운영 Profile에서는 `ENABLE_ADMIN_OBSERVABILITY=false`를 유지한다. 실행·검색·보안·문제 해결 절차는 [관측 환경 가이드](docs/OBSERVABILITY.md)에 정리했다.
+
 ## 테스트
 
 테스트는 실제 PostgreSQL과 RabbitMQ 컨테이너를 사용하며 Slack 연결이나 유료 API가 필요 없다.
@@ -113,5 +123,6 @@ docker compose exec rabbitmq rabbitmq-diagnostics -q ping
 - Slack 답변의 링크·미디어 미리보기는 외부 콘텐츠 자동 노출을 줄이기 위해 비활성화한다.
 - 운영 Profile에서는 `ENABLE_LOCAL_EVENTS=false`로 로컬 우회 Endpoint를 숨긴다.
 - 운영 공개 전에는 `ENABLE_ADMIN_RECOVERY=false`를 유지하고 관리자 인증·권한 계층을 추가한다.
+- 운영 공개 전에는 `ENABLE_ADMIN_OBSERVABILITY=false`를 유지하고 Grafana와 관리 화면에 별도 접근 통제를 적용한다.
 
 요구사항 충돌과 결정 근거는 [docs/REQUIREMENTS_REVIEW.md](docs/REQUIREMENTS_REVIEW.md)에 기록했다.
