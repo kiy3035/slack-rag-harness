@@ -783,3 +783,109 @@ SELECT version_num FROM alembic_version
 ### 다음 작업
 
 사용자 확인 후에만 7단계 실제 Slack 연동과 Thread 답변 발신을 구현한다.
+
+## 2026-09-29 — 7단계 Slack 연동 구현 완료, 실제 Workspace E2E 대기
+
+### 현재 단계
+
+- 0~6단계: 완료
+- 5A단계 선택형 Jev 관련성 실험: 완료
+- 7단계 실제 Slack 연동 코드·자동 검증: 완료
+- 7단계 무료 Slack Workspace 화면 E2E: 사용자 로컬 설정 대기
+- 8단계 이후: 미구현(현재 브랜치 범위 밖)
+
+### 6단계 병합
+
+- GitHub PR #6이 `main`에 병합된 것을 확인했다.
+- 병합 커밋: `f253662`
+- 6단계 구현 커밋 `335afff`에서 `codex/stage-7-slack-integration` 브랜치를 생성했다.
+
+### 설계 경계
+
+- Workflow 자동 완료와 사람 검토 승인은 최종 답변 저장 트랜잭션 안에서 `slack_reply_outbox`를 함께 생성한다.
+- 작업별 Slack Outbox는 `UNIQUE(job_id)`로 중복 예약을 막는다.
+- Slack API 호출은 DB 트랜잭션 밖에서 수행하고 `FOR UPDATE SKIP LOCKED`와 Lease로 다중 Worker 선점을 제어한다.
+- Slack HTTP 429는 `Retry-After`와 지수 Backoff 중 큰 값을 사용해 원격 제한 시각 전에 재호출하지 않는다.
+- Timeout·네트워크·HTTP 5xx·Slack 내부 오류만 제한 재시도하고, 채널·권한 등 영구 오류는 즉시 `FAIL`로 전환한다.
+- 원격 오류 본문, 질문, 답변, Bot Token은 로그에 남기지 않는다.
+- 원본 `channel`과 `event.thread_ts` 또는 `event.ts`를 유지해 같은 Thread에 답변한다.
+- 발신 `reply_id`를 `client_msg_id`로 전달한다. Slack 성공 직후 DB 기록 전 종료되는 극단적인 구간의 중복 가능성은 남는다.
+- 실제 Slack 발신은 `SLACK_REPLY_ENABLED=true`일 때만 활성화한다. 기본 로컬·CI 경로는 Slack 연결 없이 동작한다.
+
+### 완료 항목
+
+- 선두 Bot 멘션 제거와 빈 질문·Bot·subtype 이벤트 무시
+- 기존 Thread에서는 부모 `thread_ts`, 최상위 멘션에서는 `event.ts` 보존
+- Bot Token Authorization Header 기반 `chat.postMessage` Client
+- 링크·미디어 자동 미리보기 비활성화
+- 성공 응답 `ts`, API 오류, HTTP 429 `Retry-After`, timeout·5xx 분류
+- `slack_reply_outbox` 모델과 Migration `0006`
+- 자동 완료·검토 승인 답변의 트랜잭션 Outbox 예약
+- Slack 답변 Outbox 선점, Lease 회수, 지수 Backoff, 최대 시도, 완료 Timestamp 기록
+- Worker loop에 선택형 Slack Reply Publisher 연결
+- 환경변수와 Compose 설정 추가
+- `docs/SLACK_SETUP.md`, README, 프로젝트 개요, 아키텍처 문서 갱신
+
+### 자동 테스트
+
+```text
+docker compose --profile test run --build --rm test
+결과: 90 passed in 5.02s
+
+docker compose --profile test run --rm --no-deps test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm --no-deps test python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+검증 범위:
+
+- 수신 정상: `app_mention`의 Bot 멘션 제거, 원본 채널·Thread 보관, 3초 이내 ACK
+- 수신 경계: 기존 Thread 부모 유지, 멘션만 있는 빈 질문 무시, 모든 subtype 무시
+- 수신 중복: 동일 `event_id`와 Slack 재전송을 기존 DB UNIQUE 경계로 한 작업에 수렴
+- 발신 정상: 완료 답변을 원본 Thread로 전송하고 Slack 응답 `ts`와 `sent_at` 저장
+- 검토 승인: 사람 승인 재호출에도 Slack Outbox 한 건만 생성
+- Rate Limit: 429 `Retry-After` 전 재선점 차단과 지정 시각 재시도
+- 실패: 일시 오류 최대 횟수 소진 뒤 `FAIL`, 영구 API 오류 즉시 중단
+- 보안: Token은 Authorization Header로만 전송하고 오류 원문·질문·답변을 로그에서 제외
+- 회귀: PostgreSQL, pgvector, RabbitMQ, LangGraph Checkpoint, 검토, 장애 복구, Jev 선택형 실험 포함 전체 테스트 통과
+
+### Migration과 실제 서비스 검증
+
+```text
+alembic downgrade 0005
+결과: 0006 → 0005 성공
+
+alembic upgrade head
+결과: 0005 → 0006 성공
+
+docker compose up --build -d api outbox-publisher worker
+결과: api healthy, postgres/rabbitmq healthy, outbox-publisher/worker running
+
+GET http://localhost:8000/health/ready
+결과: {"status":"ok"}
+
+SELECT version_num FROM alembic_version
+결과: 0006
+```
+
+- `.env` 파일은 존재하지만 `SLACK_REPLY_ENABLED=false`이고 Bot Token·Signing Secret은 비어 있음을 값 노출 없이 확인했다.
+- 비활성 설정에서 Worker가 Slack API를 호출하지 않고 정상 실행되는 것을 확인했다.
+
+### 남은 제한 사항
+
+- 무료 Slack Workspace, App, Bot Token, Signing Secret이 아직 설정되지 않아 Slack PC 앱의 실제 질문·Thread 답변 화면 E2E는 실행하지 못했다.
+- TryCloudflare Quick Tunnel은 개발·시연 전용이며 주소와 가용성이 보장되지 않는다.
+- Slack 성공 직후 DB 완료 기록 전 Worker 종료 시 같은 `client_msg_id`의 재호출 가능성이 남는다.
+- `FAIL` 답변을 운영자가 다시 여는 관리자 기능은 아직 없으며 DB 상태와 안전한 오류 코드로 진단해야 한다.
+
+### 다음 작업
+
+사용자가 `docs/SLACK_SETUP.md`에 따라 무료 Workspace와 로컬 Secret을 설정하면 실제 Slack PC 앱 E2E를 완료한다. 이후 8단계 관측 화면을 구현한다.

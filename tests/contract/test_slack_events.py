@@ -165,6 +165,7 @@ async def test_app_mention_is_stored_with_thread_target_and_fast_ack() -> None:
     assert duration_seconds < 3
     incoming = service.accepted[0]
     assert incoming.source == EventSource.SLACK
+    assert incoming.question == "정산 배치 처리 방법은?"
     assert incoming.slack_channel_id == "C_FIXTURE"
     assert incoming.slack_message_ts == "1710000000.000100"
     assert incoming.slack_thread_ts == "1710000000.000100"
@@ -183,3 +184,47 @@ async def test_slack_retry_returns_duplicate_ack() -> None:
         "duplicate": True,
         "job_id": str(service.job_id),
     }
+
+
+async def test_thread_mention_keeps_parent_thread_timestamp() -> None:
+    """Thread 안의 멘션은 답글 자체가 아니라 원래 부모 Thread를 회신 대상으로 보관한다."""
+    service = FakeSlackIngestionService()
+    payload = load_fixture("slack_app_mention.json")
+    event = payload["event"]
+    assert isinstance(event, dict)
+    event["thread_ts"] = "1709999999.000001"
+    async with build_client(service) as client:
+        response = await post_signed(client, payload)
+
+    assert response.status_code == 200
+    assert service.accepted[0].slack_thread_ts == "1709999999.000001"
+
+
+async def test_any_message_subtype_is_ignored() -> None:
+    """Slack이 붙인 메시지 subtype은 Bot 반복 유입 가능성이 있어 작업을 만들지 않는다."""
+    service = FakeSlackIngestionService()
+    payload = load_fixture("slack_app_mention.json")
+    event = payload["event"]
+    assert isinstance(event, dict)
+    event["subtype"] = "message_changed"
+    async with build_client(service) as client:
+        response = await post_signed(client, payload)
+
+    assert response.status_code == 200
+    assert response.json()["ignored"] is True
+    assert service.accepted == []
+
+
+async def test_empty_question_after_bot_mention_is_ignored() -> None:
+    """Bot 멘션만 있는 이벤트를 빈 AI 작업으로 저장하지 않고 성공 ACK한다."""
+    service = FakeSlackIngestionService()
+    payload = load_fixture("slack_app_mention.json")
+    event = payload["event"]
+    assert isinstance(event, dict)
+    event["text"] = "  <@B_FIXTURE>  "
+    async with build_client(service) as client:
+        response = await post_signed(client, payload)
+
+    assert response.status_code == 200
+    assert response.json()["ignored"] is True
+    assert service.accepted == []

@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import Annotated
 from uuid import UUID
 
@@ -35,6 +36,14 @@ from app.recovery.api import router as recovery_router
 router = APIRouter()
 router.include_router(review_router)
 router.include_router(recovery_router)
+
+
+SLACK_MENTION_PREFIX = re.compile(r"^(?:\s*<@[A-Z0-9_]+>)+\s*", re.IGNORECASE)
+
+
+def normalize_slack_question(text: str) -> str:
+    """app_mention을 발생시킨 선두 Bot 멘션을 제거해 실제 질문만 남긴다."""
+    return SLACK_MENTION_PREFIX.sub("", text).strip()
 
 
 @router.get("/health/live", response_model=HealthResponse)
@@ -133,14 +142,18 @@ async def accept_slack_event(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="SLACK_PAYLOAD_INVALID",
         )
-    if event.bot_id is not None or event.subtype == "bot_message":
+    if event.bot_id is not None or event.subtype is not None:
+        return SlackAckResponse(ignored=True)
+
+    question = normalize_slack_question(event.text)
+    if not question:
         return SlackAckResponse(ignored=True)
 
     result = await service.accept(
         IncomingJob(
             source=EventSource.SLACK,
             external_event_id=envelope.event_id,
-            question=event.text,
+            question=question,
             slack_channel_id=event.channel,
             slack_message_ts=event.ts,
             slack_thread_ts=event.thread_ts or event.ts,

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.common.domain import JobStatus, ReviewStatus
 from app.db.models import AiJob, AnswerCitation, ReviewQueue
+from app.integrations.slack.repository import enqueue_slack_reply
 from app.workflow.schemas import (
     ReviewReasonCode,
     WorkflowJob,
@@ -55,6 +56,13 @@ class WorkflowRepository:
                 return current_status == result.status
             if result.status == JobStatus.COMPLETED:
                 await self._replace_citations(session, result)
+                if result.answer is None:
+                    raise ValueError("완료 결과에는 Slack 발신용 답변이 필요합니다.")
+                await enqueue_slack_reply(
+                    session,
+                    job_id=result.job_id,
+                    answer=result.answer.answer,
+                )
             else:
                 await self._upsert_review(session, result)
             return True
