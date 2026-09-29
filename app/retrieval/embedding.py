@@ -1,10 +1,13 @@
 import math
 from collections.abc import Sequence
 from enum import Enum
+from time import perf_counter
 from typing import Protocol
 
 import httpx
 from pydantic import ValidationError
+
+from app.observability.metrics import observe_ollama_call
 
 from app.retrieval.schemas import OllamaEmbedRequest, OllamaEmbedResponse
 
@@ -78,6 +81,8 @@ class OllamaEmbeddingClient:
         self, texts: Sequence[str], task: EmbeddingTask
     ) -> list[list[float]]:
         """Ollama 응답의 개수·차원·유한값을 검증해 임베딩만 반환한다."""
+        started_at = perf_counter()
+        outcome = "failed"
         prefix = self._prefixes[task]
         request = OllamaEmbedRequest(
             model=self._model,
@@ -87,23 +92,46 @@ class OllamaEmbeddingClient:
             response = await self._client.post("/api/embed", json=request.model_dump())
             response.raise_for_status()
         except httpx.TimeoutException as exc:
+            outcome = "timeout"
+            observe_ollama_call(
+                operation=f"embedding_{task.value}",
+                outcome=outcome,
+                duration_seconds=perf_counter() - started_at,
+            )
             raise EmbeddingTimeoutError("Ollama 임베딩 호출 시간이 초과됐습니다.") from exc
         except httpx.HTTPError as exc:
+            outcome = "http_error"
+            observe_ollama_call(
+                operation=f"embedding_{task.value}",
+                outcome=outcome,
+                duration_seconds=perf_counter() - started_at,
+            )
             raise EmbeddingError("Ollama 임베딩 호출에 실패했습니다.") from exc
-
         try:
-            payload = OllamaEmbedResponse.model_validate(response.json())
-        except (ValueError, ValidationError) as exc:
-            raise EmbeddingResponseError("Ollama 임베딩 응답 형식이 올바르지 않습니다.") from exc
+            try:
+                payload = OllamaEmbedResponse.model_validate(response.json())
+            except (ValueError, ValidationError) as exc:
+                outcome = "invalid_response"
+                raise EmbeddingResponseError("Ollama 임베딩 응답 형식이 올바르지 않습니다.") from exc
 
-        if len(payload.embeddings) != len(request.input):
-            raise EmbeddingResponseError("Ollama 임베딩 개수가 입력 개수와 다릅니다.")
-        for embedding in payload.embeddings:
-            if len(embedding) != self._dimensions:
-                raise EmbeddingResponseError("Ollama 임베딩 차원이 DB 설정과 다릅니다.")
-            if not all(math.isfinite(value) for value in embedding):
-                raise EmbeddingResponseError("Ollama 임베딩에 유한하지 않은 값이 있습니다.")
-        return payload.embeddings
+            if len(payload.embeddings) != len(request.input):
+                outcome = "invalid_response"
+                raise EmbeddingResponseError("Ollama 임베딩 개수가 입력 개수와 다릅니다.")
+            for embedding in payload.embeddings:
+                if len(embedding) != self._dimensions:
+                    outcome = "invalid_response"
+                    raise EmbeddingResponseError("Ollama 임베딩 차원이 DB 설정과 다릅니다.")
+                if not all(math.isfinite(value) for value in embedding):
+                    outcome = "invalid_response"
+                    raise EmbeddingResponseError("Ollama 임베딩에 유한하지 않은 값이 있습니다.")
+            outcome = "completed"
+            return payload.embeddings
+        finally:
+            observe_ollama_call(
+                operation=f"embedding_{task.value}",
+                outcome=outcome,
+                duration_seconds=perf_counter() - started_at,
+            )
 
     async def aclose(self) -> None:
         """내부에서 생성한 HTTP 연결 풀만 안전하게 종료한다."""

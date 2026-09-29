@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     dlq_publish_retry_base_seconds: int = Field(default=5, ge=1, le=3_600)
     dlq_publish_retry_max_seconds: int = Field(default=300, ge=1, le=86_400)
     enable_admin_recovery: bool = False
+    enable_admin_observability: bool = False
+    metrics_enabled: bool = True
+    metrics_port: int = Field(default=9_100, ge=1_024, le=65_535)
+    log_directory: str | None = None
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_generation_model: str = "qwen3:1.7b"

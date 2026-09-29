@@ -1,0 +1,39 @@
+local.file_match "app_logs" {
+  path_targets = [{
+    __path__ = "/var/log/slack-rag/*.log",
+  }]
+}
+
+loki.source.file "app_logs" {
+  targets    = local.file_match.app_logs.targets
+  forward_to = [loki.process.app_logs.receiver]
+}
+
+loki.process "app_logs" {
+  stage.json {
+    expressions = {
+      service   = "service",
+      level     = "level",
+      logger    = "logger",
+      request_id = "request_id",
+      job_id    = "job_id",
+      thread_id = "thread_id",
+    }
+  }
+
+  stage.labels {
+    values = {
+      service = "",
+      level   = "",
+      logger  = "",
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

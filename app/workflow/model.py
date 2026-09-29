@@ -1,10 +1,12 @@
 from collections.abc import Sequence
+from time import perf_counter
 from typing import Protocol, TypeVar
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.retrieval.schemas import SearchHit
+from app.observability.metrics import observe_ollama_call
 from app.workflow.prompts import (
     ANSWER_SYSTEM_PROMPT,
     DOCUMENT_GRADE_SYSTEM_PROMPT,
@@ -117,6 +119,7 @@ class OllamaWorkflowModelClient:
     async def classify_intent(self, question: str) -> IntentOutput:
         """질문을 스키마 기반 의도와 위험 등급으로 분류한다."""
         return await self._generate(
+            operation="classify_intent",
             system_prompt=INTENT_SYSTEM_PROMPT,
             prompt=build_intent_prompt(question),
             output_type=IntentOutput,
@@ -127,6 +130,7 @@ class OllamaWorkflowModelClient:
     ) -> AnswerOutput:
         """검색 Context와 인용 식별자를 제한한 구조화 답변을 생성한다."""
         return await self._generate(
+            operation="generate_answer",
             system_prompt=ANSWER_SYSTEM_PROMPT,
             prompt=build_answer_prompt(question, chunks),
             output_type=AnswerOutput,
@@ -137,6 +141,7 @@ class OllamaWorkflowModelClient:
     ) -> DocumentGradeOutput:
         """검색 결과의 관련성과 충돌 여부를 JSON Schema로 판정한다."""
         return await self._generate(
+            operation="grade_documents",
             system_prompt=DOCUMENT_GRADE_SYSTEM_PROMPT,
             prompt=build_document_grade_prompt(question, chunks),
             output_type=DocumentGradeOutput,
@@ -145,6 +150,7 @@ class OllamaWorkflowModelClient:
     async def rewrite_query(self, question: str, reason: str) -> RewriteQueryOutput:
         """근거 부족 질문을 한정된 검색어 구조로 재작성한다."""
         return await self._generate(
+            operation="rewrite_query",
             system_prompt=REWRITE_SYSTEM_PROMPT,
             prompt=build_rewrite_prompt(question, reason),
             output_type=RewriteQueryOutput,
@@ -153,34 +159,48 @@ class OllamaWorkflowModelClient:
     async def _generate(
         self,
         *,
+        operation: str,
         system_prompt: str,
         prompt: str,
         output_type: type[OutputModel],
     ) -> OutputModel:
         """공통 Ollama 호출과 HTTP·JSON·Pydantic 오류 변환을 수행한다."""
-        request = OllamaGenerateRequest(
-            model=self._model,
-            system=system_prompt,
-            prompt=prompt,
-            format=output_type.model_json_schema(),
-        )
+        started_at = perf_counter()
+        outcome = "failed"
         try:
+            request = OllamaGenerateRequest(
+                model=self._model,
+                system=system_prompt,
+                prompt=prompt,
+                format=output_type.model_json_schema(),
+            )
             response = await self._client.post("/api/generate", json=request.model_dump())
             response.raise_for_status()
         except httpx.TimeoutException as exc:
+            outcome = "timeout"
             raise WorkflowModelTimeoutError("Ollama 답변 생성 시간이 초과됐습니다.") from exc
         except httpx.HTTPError as exc:
+            outcome = "http_error"
             raise WorkflowModelError("Ollama 답변 생성 호출에 실패했습니다.") from exc
-
-        try:
-            payload = OllamaGenerateResponse.model_validate(response.json())
-            if not payload.done:
-                raise ValueError("비스트리밍 응답이 완료되지 않았습니다.")
-            return output_type.model_validate_json(payload.response)
-        except (ValueError, ValidationError) as exc:
-            raise WorkflowModelResponseError(
-                "Ollama 구조화 출력 형식이 올바르지 않습니다."
-            ) from exc
+        else:
+            try:
+                payload = OllamaGenerateResponse.model_validate(response.json())
+                if not payload.done:
+                    raise ValueError("비스트리밍 응답이 완료되지 않았습니다.")
+                result = output_type.model_validate_json(payload.response)
+                outcome = "completed"
+                return result
+            except (ValueError, ValidationError) as exc:
+                outcome = "invalid_response"
+                raise WorkflowModelResponseError(
+                    "Ollama 구조화 출력 형식이 올바르지 않습니다."
+                ) from exc
+        finally:
+            observe_ollama_call(
+                operation=operation,
+                outcome=outcome,
+                duration_seconds=perf_counter() - started_at,
+            )
 
     async def aclose(self) -> None:
         """내부에서 생성한 HTTP 연결 풀만 안전하게 종료한다."""

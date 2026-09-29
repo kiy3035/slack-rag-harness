@@ -9,6 +9,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from app.common.domain import JobStatus
+from app.observability.metrics import observe_workflow_node
 from app.retrieval.schemas import SearchHit
 from app.workflow.model import (
     DocumentGradeClient,
@@ -228,6 +229,11 @@ class WorkflowNodes:
             update = await operation(state)
         except Exception as error:
             elapsed_ms = (self._clock() - started_at) * 1_000
+            observe_workflow_node(
+                node=node_name,
+                outcome="failed",
+                duration_seconds=elapsed_ms / 1_000,
+            )
             self._logger.error(
                 "workflow_node_failed node=%s job_id=%s thread_id=%s "
                 "duration_ms=%.3f error_code=%s",
@@ -239,6 +245,11 @@ class WorkflowNodes:
             )
             raise
         elapsed_ms = (self._clock() - started_at) * 1_000
+        observe_workflow_node(
+            node=node_name,
+            outcome="completed",
+            duration_seconds=elapsed_ms / 1_000,
+        )
         self._logger.info(
             "workflow_node_completed node=%s job_id=%s thread_id=%s duration_ms=%.3f",
             node_name,
