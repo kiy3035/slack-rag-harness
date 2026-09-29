@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 6단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구를 포함한다. 실제 Slack 발신은 아직 포함하지 않는다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 7단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구와 실제 Slack Thread 발신을 포함한다.
 
 ## 실행
 
@@ -81,6 +81,12 @@ Worker의 Ollama·DB 일시 오류는 `RETRY_WAIT`에 다음 재시도 시각을
 
 실패 작업의 관리자 수동 재처리 Endpoint는 기본 비활성화이며 로컬에서 `ENABLE_ADMIN_RECOVERY=true`를 설정한 경우에만 사용할 수 있다. 오류 분류, 상태 전이, 환경변수, 장애별 재현 결과는 [Worker 장애 복구 가이드](docs/RECOVERY.md)에 정리했다.
 
+## 실제 Slack 연동
+
+Slack Events API는 서명 검증과 중복 방지 후 3초 안에 ACK하고, AI 처리는 기존 RabbitMQ Worker가 수행한다. 자동 완료 답변과 사람이 승인한 답변은 작업 완료 트랜잭션에서 `slack_reply_outbox`에 한 번 예약된다. Worker의 Slack Publisher는 원본 `channel`과 부모 `thread_ts`로 `chat.postMessage`를 호출한다.
+
+실제 Workspace를 연결할 때만 `.env`에 `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_REPLY_ENABLED=true`를 설정한다. Slack API 429의 `Retry-After`와 일시 오류는 제한 재시도하며, 영구 오류나 재시도 소진은 `FAIL` 상태와 안전한 오류 코드로 남는다. App 생성, Scope, Event Subscription, 무료 Quick Tunnel과 화면 E2E 절차는 [Slack 설정 가이드](docs/SLACK_SETUP.md)에 정리했다.
+
 ## 테스트
 
 테스트는 실제 PostgreSQL과 RabbitMQ 컨테이너를 사용하며 Slack 연결이나 유료 API가 필요 없다.
@@ -103,6 +109,8 @@ docker compose exec rabbitmq rabbitmq-diagnostics -q ping
 - `.env.example`의 값은 로컬 예시이며 실제 Slack Secret이 아니다.
 - Slack 서명은 JSON 파싱 전에 원본 요청 바이트로 검증한다.
 - Timestamp 허용 범위 기본값은 300초다.
+- Bot Token은 Slack Web API의 Authorization Header로만 전달하고 로그에 남기지 않는다.
+- Slack 답변의 링크·미디어 미리보기는 외부 콘텐츠 자동 노출을 줄이기 위해 비활성화한다.
 - 운영 Profile에서는 `ENABLE_LOCAL_EVENTS=false`로 로컬 우회 Endpoint를 숨긴다.
 - 운영 공개 전에는 `ENABLE_ADMIN_RECOVERY=false`를 유지하고 관리자 인증·권한 계층을 추가한다.
 

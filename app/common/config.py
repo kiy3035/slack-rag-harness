@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     retrieval_min_score: float = Field(default=-1.0, ge=-1.0, le=1.0)
     retrieval_max_chunks_per_document: int = Field(default=2, ge=1, le=20)
     enable_local_events: bool = False
+    slack_reply_enabled: bool = False
+    slack_bot_token: SecretStr = SecretStr("")
+    slack_api_base_url: str = "https://slack.com/api"
+    slack_api_timeout_seconds: float = Field(default=10.0, gt=0.0, le=120.0)
+    slack_reply_lease_seconds: int = Field(default=30, ge=1, le=3_600)
+    slack_reply_max_attempts: int = Field(default=5, ge=1, le=20)
+    slack_reply_retry_base_seconds: int = Field(default=2, ge=1, le=3_600)
+    slack_reply_retry_max_seconds: int = Field(default=300, ge=1, le=86_400)
     slack_signing_secret: SecretStr = SecretStr("")
     slack_timestamp_tolerance_seconds: int = Field(default=300, ge=1, le=900)
 

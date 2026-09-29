@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.domain import JobStatus, OutboxStatus, ReviewStatus
 from app.db.models import AiJob, AnswerCitation, JobOutbox, ReviewQueue
+from app.integrations.slack.repository import enqueue_slack_reply
 from app.reviews.schemas import (
     AllowedReviewCitation,
     EditApproveRequest,
@@ -288,6 +289,11 @@ class ReviewService:
                     similarity_score=citation.similarity_score,
                 )
             )
+        await enqueue_slack_reply(
+            self._session,
+            job_id=review.job_id,
+            answer=answer,
+        )
 
     def _mark_review(
         self,

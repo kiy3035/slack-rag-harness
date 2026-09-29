@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.common.config import DocumentGraderProvider, Settings, get_settings
 from app.db.session import build_engine
+from app.integrations.slack.client import SlackWebClient
+from app.integrations.slack.publisher import SlackReplyPublisher
+from app.integrations.slack.repository import SlackReplyRepository
 from app.messaging.rabbitmq import RabbitBroker
 from app.recovery.errors import RetryPolicy
 from app.recovery.repository import JobRecoveryRepository
@@ -82,8 +85,26 @@ async def run_worker() -> None:
         settings, model_client
     )
     broker = RabbitBroker(settings)
+    slack_client: SlackWebClient | None = None
+    slack_publisher: SlackReplyPublisher | None = None
     try:
         await broker.connect()
+        if settings.slack_reply_enabled:
+            slack_client = SlackWebClient(
+                bot_token=settings.slack_bot_token.get_secret_value(),
+                base_url=settings.slack_api_base_url,
+                timeout_seconds=settings.slack_api_timeout_seconds,
+            )
+            slack_publisher = SlackReplyPublisher(
+                repository=SlackReplyRepository(session_factory),
+                client=slack_client,
+                retry_policy=RetryPolicy(
+                    max_attempts=settings.slack_reply_max_attempts,
+                    base_seconds=settings.slack_reply_retry_base_seconds,
+                    max_seconds=settings.slack_reply_retry_max_seconds,
+                ),
+                lease_seconds=settings.slack_reply_lease_seconds,
+            )
         repository = WorkflowRepository(session_factory)
         search_service = KnowledgeSearchService(
             repository=KnowledgeRepository(session_factory),
@@ -127,6 +148,8 @@ async def run_worker() -> None:
             )
             while True:
                 await recovery_scheduler.process_once()
+                if slack_publisher is not None:
+                    await slack_publisher.process_once()
                 await consumer.consume_one(
                     timeout=settings.worker_recovery_poll_seconds
                 )
@@ -134,6 +157,8 @@ async def run_worker() -> None:
         await broker.close()
         await embedding_client.aclose()
         await model_client.aclose()
+        if slack_client is not None:
+            await slack_client.aclose()
         if jev_client is not None:
             await jev_client.aclose()
         await engine.dispose()

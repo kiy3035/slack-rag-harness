@@ -86,6 +86,9 @@ class AiJob(Base):
     recovery_requests: Mapped[list["JobRecoveryRequest"]] = relationship(
         back_populates="job", cascade="all, delete-orphan"
     )
+    slack_reply: Mapped["SlackReplyOutbox | None"] = relationship(
+        back_populates="job", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class JobOutbox(Base):
@@ -115,6 +118,39 @@ class JobOutbox(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     job: Mapped[AiJob] = relationship(back_populates="outbox")
+
+
+class SlackReplyOutbox(Base):
+    """완료 답변의 Slack Thread 발신 상태를 복구 가능한 원장으로 저장한다."""
+
+    __tablename__ = "slack_reply_outbox"
+
+    reply_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("ai_job.job_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    channel_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    thread_ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    message_text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[OutboxStatus] = mapped_column(
+        Enum(OutboxStatus, name="outbox_status", native_enum=True, validate_strings=True),
+        nullable=False,
+        default=OutboxStatus.READY,
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(100))
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    slack_message_ts: Mapped[str | None] = mapped_column(String(50))
+
+    job: Mapped[AiJob] = relationship(back_populates="slack_reply")
 
 
 class JobRecoveryRequest(Base):
