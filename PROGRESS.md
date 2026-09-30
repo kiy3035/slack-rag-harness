@@ -1001,3 +1001,98 @@ Grafana /api/health 및 Dashboard API
 ### 다음 작업
 
 8단계 PR 병합 후 9단계 평가 하네스를 별도 브랜치와 PR로 구현한다.
+
+## 2026-09-30 — 9단계 평가 하네스 구현 완료
+
+### 현재 단계
+
+- 0~9단계: 구현 완료
+- 7단계 무료 Slack Workspace 화면 E2E: 사용자 로컬 설정 대기
+- 9단계 실제 60건 기준·비교 측정: 로컬 CPU 실행시간 문제로 미완료
+- 10단계: 미구현(현재 브랜치 범위 밖)
+
+### 8단계 병합
+
+- GitHub PR #8이 `main`에 병합된 것을 확인했다.
+- 병합 커밋 `bf1dad1`에서 `codex/stage-9-evaluation-harness` 브랜치를 생성했다.
+
+### 설계 경계
+
+- 평가 데이터셋은 JSONL 60건으로 고정하고 답변 가능, 문서 없음, 표현 변형, 다중 문서, 문서 충돌, 민감 작업을 각각 10건씩 포함한다.
+- 데이터셋은 Pydantic으로 검증하며 최소 건수, 필수 유형, 중복 ID, 유형별 기대 문서·검토 계약과 실제 문서 경로를 실행 전에 확인한다.
+- 평가 실행은 운영과 같은 pgvector 검색, Workflow 노드, Ollama 생성·임베딩 모델을 사용하되 인메모리 Checkpoint를 사용하고 운영 작업·검토·RabbitMQ에는 쓰지 않는다.
+- 관련성 판정은 선택형 외부 Jev 설정과 무관하게 로컬 Ollama 모델을 사용한다.
+- Retrieval Recall@K는 기대 문서가 있는 Case의 Macro 평균, 인용 정확도는 실제 인용 Chunk의 Micro 평균으로 계산한다.
+- 검토 전환 정확도와 결정적인 핵심어 겹침 기반 근거 없는 문장률을 함께 기록한다.
+- 성능 수치는 실제 실행에서만 계산하고 플랫폼, CPU 수, 모델명, 데이터셋 해시와 모든 검색·동시성 조건을 결과에 포함한다.
+- 비교 리포트는 같은 데이터셋에서 기준 실행 대비 정확히 한 조건만 바뀐 후보만 허용한다.
+
+### 완료 항목
+
+- 60건 고정 평가 데이터셋과 여섯 유형별 10건 균형 구성
+- 데이터셋 Schema·SHA-256·문서 경로·유형별 계약 검증
+- 실제 pgvector/Ollama Workflow를 재사용하는 읽기 전용 평가 실행기
+- Retrieval Recall@K, 인용 정확도, 검토 전환 정확도, 근거 없는 문장률 계산
+- 처리량, nearest-rank p95, 실패 Case와 안전한 오류 코드 기록
+- JSON 원본과 한국어 Markdown 리포트의 원자적 저장
+- Top-K, 유사도 임계값, 검색어 재작성, Worker 수의 단일 조건 비교 검증
+- `docs/EVALUATION.md`, README, 프로젝트 개요, 아키텍처 문서 갱신
+
+### 자동 테스트와 정적 검증
+
+```text
+로컬 가상환경: python -m pytest -q -p no:cacheprovider tests/unit
+결과: 57 passed in 2.53s
+
+로컬 가상환경: python -m pytest -q -p no:cacheprovider tests/contract
+결과: 9 passed in 0.57s
+
+docker compose --profile test run --build --rm test
+결과: 101 passed in 6.45s
+
+python -m compileall -q app tests migrations
+결과: 성공
+
+python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+### 데이터셋 검증
+
+```text
+python -m app.evaluation.main validate
+결과: 60건, 여섯 유형 각각 10건
+SHA-256: 6933a55c61df3387079afc1e4b7d3c512ef11e62d6809ed275aef55d1a1c1797
+```
+
+### 실제 측정 시도
+
+```text
+docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
+결과: qwen3:1.7b와 nomic-embed-text를 100% CPU로 사용해 60분간 실행했으나 60건을 완주하지 못해 중단
+```
+
+완주 전에는 리포트를 원자적으로 생성하지 않으므로 측정 수치나 결과 파일은 남기지 않았다. 임의의 일부 데이터, 추정값 또는 보정값으로 대체하지 않았다. 따라서 Top-K, 유사도 임계값, 재작성, Worker 수 비교 수치도 아직 확정하지 않았다.
+
+### 무료·로컬 구성
+
+- 평가 실행은 기존 `qwen3:1.7b`, `nomic-embed-text`, PostgreSQL·pgvector만 사용한다.
+- 외부 평가 SaaS, 유료 API와 관리형 저장소는 추가하지 않았다.
+- 평가 질문·검색 본문·답변이 포함된 `evaluation/results`는 Git에서 제외한다.
+
+### 남은 제한 사항
+
+- CPU 전용 Worker 1개 기준 60건 실행이 60분 안에 완주하지 않아 실제 품질·처리량·p95와 조건별 비교 수치는 아직 없다.
+- 현재 리포트는 전체 Case 완주 뒤 생성되므로 장시간 실행 중단 시 부분 결과를 재개하지 못한다. 장시간 반복 측정 전에 Case 단위 Checkpoint·재개 기능을 추가하는 것이 필요하다.
+- 문서 충돌 Case는 현재 문서 자체의 실제 충돌이 아니라 사용자가 상충 지침을 주장할 때 안전한 검토 전환을 기대하는 계약이다.
+- 실제 Slack PC 앱 화면 E2E는 7단계에서와 같이 사용자 Workspace Secret 설정을 기다린다.
+
+### 다음 작업
+
+9단계 PR 병합 후 장시간 평가의 Case 단위 Checkpoint·재개를 보강하고 실제 기준·단일 조건 비교 측정을 완료한다. 이후 10단계 부하 테스트와 블로그 자료를 별도 브랜치와 PR로 구현한다.
