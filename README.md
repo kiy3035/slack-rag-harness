@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 8단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신과 로컬 관측 환경을 포함한다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 9단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신, 로컬 관측 환경과 고정 평가 하네스를 포함한다.
 
 ## 실행
 
@@ -96,6 +96,17 @@ Slack Events API는 서명 검증과 중복 방지 후 3초 안에 ACK하고, AI
 - Prometheus: `http://localhost:9090`
 
 관리 화면은 로컬 Compose에서만 기본 활성화하며 인증 기능이 없다. 외부에 공개하지 말고 운영 Profile에서는 `ENABLE_ADMIN_OBSERVABILITY=false`를 유지한다. 실행·검색·보안·문제 해결 절차는 [관측 환경 가이드](docs/OBSERVABILITY.md)에 정리했다.
+
+## 평가 하네스
+
+60건 JSONL 데이터셋은 답변 가능, 문서 없음, 표현 변형, 다중 문서, 문서 충돌, 민감 작업을 각각 10건씩 고정한다. 실제 pgvector 검색과 로컬 Ollama Workflow를 실행해 Retrieval Recall@K, 인용 정확도, 검토 전환 정확도, 근거 없는 문장률, 처리량과 p95를 JSON·Markdown으로 저장한다. 평가 실행은 인메모리 Checkpoint를 사용하며 운영 작업과 검토 테이블을 변경하지 않는다.
+
+```powershell
+docker compose run --rm api python -m app.evaluation.main validate
+docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
+```
+
+결과는 `evaluation/results`에 생성되며 Git에 포함되지 않는다. Top-K, 유사도 임계값, 재작성 횟수, Worker 수는 기준 실행에서 한 조건씩만 바꿔 비교한다. 지표 정의와 비교 명령은 [평가 하네스 가이드](docs/EVALUATION.md)에 정리했다.
 
 ## 테스트
 

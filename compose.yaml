@@ -116,6 +116,7 @@ services:
       - "${API_PORT:-8000}:8000"
     volumes:
       - app-logs:/var/log/slack-rag
+      - ./evaluation/results:/workspace/evaluation/results
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=2)"]
       interval: 5s
