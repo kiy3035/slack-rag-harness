@@ -4,13 +4,15 @@ import json
 from pathlib import Path
 
 from app.common.config import get_settings
+from app.evaluation.checkpoint import checkpoint_path
 from app.evaluation.dataset import category_counts, dataset_sha256, load_dataset
+from app.evaluation.lock import EvaluationRunLock, run_lock_path
 from app.evaluation.reporting import (
     load_report,
     render_comparison_report,
     write_report,
 )
-from app.evaluation.runner import run_live_evaluation
+from app.evaluation.runner import create_run_id, run_live_evaluation
 from app.evaluation.schemas import EvaluationConfig
 
 
@@ -34,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--max-chunks-per-document", type=int, default=2)
     run.add_argument("--max-query-rewrites", type=int, default=1)
     run.add_argument("--worker-count", type=int, default=1)
+    run.add_argument(
+        "--run-id",
+        help="같은 실행 ID의 체크포인트가 있으면 완료된 Case 이후부터 재개합니다.",
+    )
 
     compare = subparsers.add_parser(
         "compare",
@@ -75,10 +81,44 @@ def _run_evaluation(arguments: argparse.Namespace) -> int:
         max_query_rewrites=arguments.max_query_rewrites,
         worker_count=arguments.worker_count,
     )
-    report = asyncio.run(
-        run_live_evaluation(arguments.dataset, get_settings(), config)
-    )
-    json_path, markdown_path = write_report(report, arguments.output_dir)
+    run_id = arguments.run_id or create_run_id(config)
+    current_checkpoint_path = checkpoint_path(arguments.output_dir, run_id)
+    final_json_path = arguments.output_dir / f"{run_id}.json"
+
+    def print_progress(completed: int, total: int, case_id: str | None) -> None:
+        """장시간 실행의 재개 지점과 Case별 완료 진행률을 한 줄 JSON으로 출력한다."""
+        event = "resumed" if case_id is None and completed else "started"
+        if case_id is not None:
+            event = "case_completed"
+        print(
+            json.dumps(
+                {
+                    "event": event,
+                    "run_id": run_id,
+                    "completed": completed,
+                    "total": total,
+                    "case_id": case_id,
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+
+    with EvaluationRunLock(run_lock_path(arguments.output_dir, run_id)):
+        if final_json_path.exists() and not current_checkpoint_path.exists():
+            raise ValueError("이미 완료된 실행 ID입니다. 새 실행 ID를 사용하세요.")
+        report = asyncio.run(
+            run_live_evaluation(
+                arguments.dataset,
+                get_settings(),
+                config,
+                output_directory=arguments.output_dir,
+                run_id=run_id,
+                progress_callback=print_progress,
+            )
+        )
+        json_path, markdown_path = write_report(report, arguments.output_dir)
+        current_checkpoint_path.unlink(missing_ok=True)
     print(
         json.dumps(
             {
