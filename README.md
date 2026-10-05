@@ -99,14 +99,14 @@ Slack Events API는 서명 검증과 중복 방지 후 3초 안에 ACK하고, AI
 
 ## 평가 하네스
 
-60건 JSONL 데이터셋은 답변 가능, 문서 없음, 표현 변형, 다중 문서, 문서 충돌, 민감 작업을 각각 10건씩 고정한다. 실제 pgvector 검색과 로컬 Ollama Workflow를 실행해 Retrieval Recall@K, 인용 정확도, 검토 전환 정확도, 근거 없는 문장률, 처리량과 p95를 JSON·Markdown으로 저장한다. 평가 실행은 인메모리 Checkpoint를 사용하며 운영 작업과 검토 테이블을 변경하지 않는다.
+60건 JSONL 데이터셋은 답변 가능, 문서 없음, 표현 변형, 다중 문서, 문서 충돌, 민감 작업을 각각 10건씩 고정한다. 실제 pgvector 검색과 로컬 Ollama Workflow를 실행해 Retrieval Recall@K, 인용 정확도, 검토 전환 정확도, 근거 없는 문장률, 처리량과 p95를 JSON·Markdown으로 저장한다. Case 내부 LangGraph 상태는 메모리에만 두고 완료된 Case 결과는 로컬 파일 Checkpoint에 원자적으로 저장하므로, 같은 실행 ID로 중단 지점부터 재개할 수 있다. 운영 작업과 검토 테이블은 변경하지 않는다.
 
 ```powershell
 docker compose run --rm api python -m app.evaluation.main validate
-docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
+docker compose run --rm api python -m app.evaluation.main run --run-id baseline-v1 --top-k 5 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
 ```
 
-결과는 `evaluation/results`에 생성되며 Git에 포함되지 않는다. Top-K, 유사도 임계값, 재작성 횟수, Worker 수는 기준 실행에서 한 조건씩만 바꿔 비교한다. 지표 정의와 비교 명령은 [평가 하네스 가이드](docs/EVALUATION.md)에 정리했다.
+중단되면 같은 명령과 같은 `--run-id`를 다시 실행한다. 데이터셋 해시·설정·실행 환경·모델이 다르면 재개를 거부하고, 같은 실행 ID를 다른 프로세스가 사용 중이면 운영체제 파일 잠금으로 중복 실행을 차단한다. 최종 결과와 실행 중 Checkpoint는 `evaluation/results`에 생성되며 Git에 포함되지 않는다. Top-K, 유사도 임계값, 재작성 횟수, Worker 수는 기준 실행에서 한 조건씩만 바꿔 비교한다. 지표 정의와 비교 명령은 [평가 하네스 가이드](docs/EVALUATION.md)에 정리했다.
 
 ## 테스트
 

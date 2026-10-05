@@ -1096,3 +1096,71 @@ docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-sc
 ### 다음 작업
 
 9단계 PR 병합 후 장시간 평가의 Case 단위 Checkpoint·재개를 보강하고 실제 기준·단일 조건 비교 측정을 완료한다. 이후 10단계 부하 테스트와 블로그 자료를 별도 브랜치와 PR로 구현한다.
+
+## 2026-10-05 — 9단계 장시간 평가 재개·중복 실행 방지 보강
+
+### 현재 단계
+
+- 9단계 평가 하네스 PR #9 병합 완료(`abb6b15`)
+- Case 단위 Checkpoint·재개와 실행 ID별 프로세스 잠금 구현 완료
+- Worker 2 실제 60건 실행 완료
+- Worker 1의 오염되지 않은 기준 측정과 단일 조건 비교 리포트는 후속 측정 필요
+
+### 완료 항목
+
+- 실행 ID별 JSON Checkpoint에 데이터셋 해시, 평가 설정, 실행 환경, 누적 활성 실행시간과 완료 Case를 원자적으로 저장
+- 같은 데이터셋·설정·환경·모델일 때만 완료 Case 이후부터 재개
+- Worker 병렬 완료 순서와 무관하게 최종 결과를 원본 데이터셋 순서로 정렬
+- Case 완료마다 한 줄 JSON 진행 로그 출력
+- 동일 실행 ID를 운영체제 파일 잠금으로 한 프로세스만 소유하도록 제한
+- Windows와 Linux 컨테이너에서 프로세스 종료 뒤 잠금 재획득 검증
+- 완료된 실행 ID 재사용과 경로 이탈 가능한 실행 ID 거부
+
+### 자동 테스트와 정적 검증
+
+```text
+로컬 가상환경: python -m pytest -q -p no:cacheprovider tests/unit
+결과: 60 passed in 3.51s
+
+docker compose --profile test run --build --rm test
+결과: 104 passed in 11.49s
+
+python -m compileall -q app tests migrations
+결과: 성공
+
+python -m pip check
+결과: No broken requirements found.
+
+docker compose config --quiet
+결과: 성공
+
+git diff --check
+결과: 성공
+```
+
+로컬 제한 실행에서는 pytest 임시 디렉터리 ACL 때문에 3개 Fixture가 준비되지 않았으나, 같은 명령을 호스트 권한으로 다시 실행해 60개 전체 통과를 확인했다. Docker 전체 회귀 테스트도 별도로 통과했다.
+
+### 실제 측정 상태
+
+Worker 2 단독 실행(`workers-2-cpu-v1`)은 60건을 모두 완료했다.
+
+```text
+Retrieval Recall@5: 0.74
+인용 정확도: 0.94
+검토 전환 정확도: 0.65
+근거 없는 문장률: 0.6104651162790697
+처리량: 0.018232049322957588 cases/s
+p95: 175151.5711050015 ms
+실패 Case: 0
+```
+
+최초 Worker 1 실행은 Docker CLI 중단 뒤 일회성 컨테이너가 계속 수행되어 재개 프로세스와 같은 실행 ID를 덮어썼다. 이 문제를 재현해 실행 ID별 운영체제 잠금을 추가했고, 서로 다른 컨테이너에서 두 번째 획득이 거부되는 것을 확인했다.
+
+새 Worker 1 측정 중에도 `Ctrl+C`가 컨테이너가 아닌 Docker CLI만 종료하는 동작을 확인했다. 이후 로컬·Docker 테스트와 CPU가 겹쳤으므로 해당 부분 측정은 성능 기준에서 제외하고 실제 컨테이너 ID를 확인해 종료했다. 추정값이나 오염된 결과를 비교 수치로 사용하지 않는다.
+
+### 남은 제한 사항
+
+- Worker 1 기준값은 새 실행 ID로 다른 작업과 CPU가 겹치지 않게 60건을 다시 완주해야 한다.
+- Worker 1 기준값이 없으므로 Worker 수만 바꾼 최종 비교 리포트는 아직 확정하지 않았다.
+- Top-K, 최소 검색 점수, 재작성 횟수 비교는 각각 별도의 실제 60건 실행이 필요하다.
+- 실제 Slack PC 앱 화면 E2E는 사용자 Workspace Secret 설정을 기다린다.

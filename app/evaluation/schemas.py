@@ -143,6 +143,29 @@ class EvaluationEnvironment(BaseModel):
     embedding_model: str
 
 
+class EvaluationCheckpoint(BaseModel):
+    """중단된 평가가 같은 조건에서 남은 Case만 재개하도록 진행 상태를 보존한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = 1
+    run_id: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,127}$")
+    dataset_path: str = Field(min_length=1)
+    dataset_sha256: str = Field(min_length=64, max_length=64)
+    config: EvaluationConfig
+    environment: EvaluationEnvironment
+    cumulative_duration_ms: float = Field(ge=0.0)
+    predictions: list[EvaluationPrediction] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_unique_predictions(self) -> Self:
+        """같은 Case 결과가 중복 저장되어 재개 순서가 모호해지는 것을 막는다."""
+        case_ids = [prediction.case_id for prediction in self.predictions]
+        if len(case_ids) != len(set(case_ids)):
+            raise ValueError("체크포인트의 case_id는 중복될 수 없습니다.")
+        return self
+
+
 class EvaluationReport(BaseModel):
     """설정·환경·개별 결과·집계값을 함께 보존하는 평가 산출물이다."""
 

@@ -2,7 +2,7 @@
 
 ## 1. 목적과 데이터 경계
 
-평가 하네스는 모델이나 검색 설정을 바꾸기 전후에 같은 질문과 같은 판정 규칙을 실행해 회귀를 확인한다. 평가용 Workflow는 실제 `WorkflowNodes`, pgvector 검색과 로컬 Ollama Client를 재사용하지만 Checkpoint는 메모리에만 저장한다. `ai_job`, `review_queue`, `answer_citation`과 RabbitMQ에는 쓰지 않는다.
+평가 하네스는 모델이나 검색 설정을 바꾸기 전후에 같은 질문과 같은 판정 규칙을 실행해 회귀를 확인한다. 평가용 Workflow는 실제 `WorkflowNodes`, pgvector 검색과 로컬 Ollama Client를 재사용한다. Case 내부 LangGraph Checkpoint는 메모리에만 저장하고, 완료된 Case 결과와 누적 활성 실행시간은 실행 ID별 로컬 JSON Checkpoint에 원자적으로 저장한다. `ai_job`, `review_queue`, `answer_citation`과 RabbitMQ에는 쓰지 않는다.
 
 유료 API와 외부 평가 SaaS는 사용하지 않는다. 관련성 판정도 평가 중에는 로컬 Ollama를 사용하며, 선택형 Jev 설정이 있어도 호출하지 않는다. 질문과 답변은 로컬 JSON·Markdown 리포트에만 저장되고 `evaluation/results`는 Git에서 제외된다.
 
@@ -75,6 +75,7 @@ docker compose run --rm api python -m app.retrieval.main ingest knowledge/manual
 
 ```powershell
 docker compose run --rm api python -m app.evaluation.main run `
+  --run-id baseline-v1 `
   --top-k 5 `
   --min-score -1.0 `
   --max-chunks-per-document 2 `
@@ -82,7 +83,11 @@ docker compose run --rm api python -m app.evaluation.main run `
   --worker-count 1
 ```
 
-완료되면 `evaluation/results/eval-*.json`과 같은 이름의 `.md`가 생성된다. JSON에는 모든 Case의 검색 Chunk, 인용, 답변, 검토 여부, 지연과 안전한 오류 코드가 포함된다.
+실행 중에는 Case가 끝날 때마다 `evaluation/results/baseline-v1.checkpoint.json`을 임시 파일 교체 방식으로 저장하고 진행률을 한 줄 JSON으로 출력한다. 중단되면 설정을 바꾸지 않고 같은 명령을 실행한다. 데이터셋 SHA-256, Top-K, 임계값, 문서별 Chunk 수, 재작성 횟수, Worker 수, 운영체제·CPU와 모델명이 모두 같아야 저장된 Case 이후부터 재개한다.
+
+같은 실행 ID는 운영체제 파일 잠금으로 한 프로세스만 사용할 수 있다. 이미 실행 중인 ID를 다시 시작하면 즉시 실패하므로, 먼저 시작한 컨테이너가 실제로 종료됐는지 확인한 뒤 재개해야 한다. 프로세스 종료나 장애 시 잠금은 운영체제가 자동 해제하며 `.lock` 파일 자체는 진단 정보로 남을 수 있다.
+
+완료되면 `evaluation/results/baseline-v1.json`과 같은 이름의 `.md`가 생성되고 Checkpoint는 제거된다. JSON에는 모든 Case의 검색 Chunk, 인용, 답변, 검토 여부, 지연과 안전한 오류 코드가 포함된다. 실행 ID를 생략하면 자동 생성된 ID가 첫 진행 로그에 출력되므로 그 값을 재개 명령에 사용한다.
 
 ## 5. 한 조건 비교
 
@@ -90,17 +95,17 @@ docker compose run --rm api python -m app.evaluation.main run `
 
 ```powershell
 # Top-K 후보
-docker compose run --rm api python -m app.evaluation.main run --top-k 3 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
-docker compose run --rm api python -m app.evaluation.main run --top-k 8 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
+docker compose run --rm api python -m app.evaluation.main run --run-id top-k-3-v1 --top-k 3 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
+docker compose run --rm api python -m app.evaluation.main run --run-id top-k-8-v1 --top-k 8 --min-score -1.0 --max-query-rewrites 1 --worker-count 1
 
 # 유사도 임계값 후보
-docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-score 0.2 --max-query-rewrites 1 --worker-count 1
+docker compose run --rm api python -m app.evaluation.main run --run-id min-score-0p2-v1 --top-k 5 --min-score 0.2 --max-query-rewrites 1 --worker-count 1
 
 # 재작성 적용 전후
-docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-score -1.0 --max-query-rewrites 0 --worker-count 1
+docker compose run --rm api python -m app.evaluation.main run --run-id no-rewrite-v1 --top-k 5 --min-score -1.0 --max-query-rewrites 0 --worker-count 1
 
 # Worker 수 비교
-docker compose run --rm api python -m app.evaluation.main run --top-k 5 --min-score -1.0 --max-query-rewrites 1 --worker-count 2
+docker compose run --rm api python -m app.evaluation.main run --run-id workers-2-v1 --top-k 5 --min-score -1.0 --max-query-rewrites 1 --worker-count 2
 ```
 
 비교 명령의 첫 JSON은 기준 실행이어야 한다. 후보가 데이터셋 해시가 다르거나 두 조건 이상 바뀌면 명령이 실패한다.
@@ -125,7 +130,7 @@ Top-K, 임계값, 재작성, Worker 수는 서로 다른 비교 파일로 나눈
 
 ## 7. 자동 테스트
 
-평가 단위 테스트는 Ollama 없이 데이터셋 계약, 지표 분모, 근거 없는 문장 규칙, JSON·Markdown 생성과 단일 조건 비교 제한을 검증한다.
+평가 단위 테스트는 Ollama 없이 데이터셋 계약, 지표 분모, 근거 없는 문장 규칙, JSON·Markdown 생성, 단일 조건 비교 제한과 Checkpoint 저장·계약 검증·완료 Case 건너뛰기·동일 실행 ID 중복 잠금을 검증한다.
 
 ```powershell
 docker compose --profile test run --build --rm test

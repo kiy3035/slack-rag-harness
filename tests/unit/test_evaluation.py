@@ -3,7 +3,18 @@ from pathlib import Path
 
 import pytest
 
+from app.evaluation.checkpoint import (
+    checkpoint_path,
+    load_checkpoint,
+    validate_checkpoint_context,
+    write_checkpoint,
+)
 from app.evaluation.dataset import category_counts, load_dataset
+from app.evaluation.lock import (
+    EvaluationRunLock,
+    EvaluationRunLockedError,
+    run_lock_path,
+)
 from app.evaluation.reporting import (
     render_comparison_report,
     render_markdown_report,
@@ -12,12 +23,14 @@ from app.evaluation.reporting import (
 from app.evaluation.schemas import (
     EvaluationCase,
     EvaluationCategory,
+    EvaluationCheckpoint,
     EvaluationChunk,
     EvaluationConfig,
     EvaluationEnvironment,
     EvaluationPrediction,
     EvaluationReport,
 )
+from app.evaluation.runner import LiveEvaluationHarness
 from app.evaluation.scoring import (
     evaluate_case,
     find_unsupported_claims,
@@ -166,3 +179,135 @@ def test_comparison_allows_only_one_changed_condition() -> None:
     assert "top_k" in comparison
     with pytest.raises(ValueError, match="한 조건"):
         render_comparison_report([baseline, invalid_candidate])
+
+
+def test_checkpoint_round_trip_and_context_validation(tmp_path: Path) -> None:
+    """체크포인트가 원자 저장되고 같은 데이터·설정·환경에서만 재개되는지 검증한다."""
+    case = EvaluationCase(
+        case_id="resume-case",
+        category=EvaluationCategory.NO_DOCUMENT,
+        question="재개할 질문입니다.",
+        expected_review=True,
+    )
+    environment = EvaluationEnvironment(
+        platform="test-platform",
+        machine="test-machine",
+        cpu_count=2,
+        generation_model="fake-generation",
+        embedding_model="fake-embedding",
+    )
+    prediction = EvaluationPrediction(
+        case_id=case.case_id,
+        review_required=True,
+        latency_ms=125.0,
+    )
+    checkpoint = EvaluationCheckpoint(
+        run_id="eval-resume-test",
+        dataset_path="evaluation/datasets/v1.jsonl",
+        dataset_sha256="b" * 64,
+        config=EvaluationConfig(),
+        environment=environment,
+        cumulative_duration_ms=250.0,
+        predictions=[prediction],
+    )
+    path = checkpoint_path(tmp_path, checkpoint.run_id)
+
+    write_checkpoint(checkpoint, path)
+    loaded = load_checkpoint(path)
+    validate_checkpoint_context(
+        loaded,
+        dataset_hash="b" * 64,
+        config=EvaluationConfig(),
+        environment=environment,
+        cases=[case],
+    )
+
+    assert loaded == checkpoint
+    assert not path.with_suffix(path.suffix + ".tmp").exists()
+    with pytest.raises(ValueError, match="설정"):
+        validate_checkpoint_context(
+            loaded,
+            dataset_hash="b" * 64,
+            config=EvaluationConfig(top_k=8),
+            environment=environment,
+            cases=[case],
+        )
+
+
+@pytest.mark.asyncio
+async def test_run_cases_skips_checkpointed_cases(monkeypatch: pytest.MonkeyPatch) -> None:
+    """재개 실행이 이미 저장된 Case를 다시 호출하지 않고 입력 순서를 보존하는지 검증한다."""
+    cases = [
+        EvaluationCase(
+            case_id="resume-first",
+            category=EvaluationCategory.NO_DOCUMENT,
+            question="첫 번째 질문입니다.",
+            expected_review=True,
+        ),
+        EvaluationCase(
+            case_id="resume-second",
+            category=EvaluationCategory.NO_DOCUMENT,
+            question="두 번째 질문입니다.",
+            expected_review=True,
+        ),
+    ]
+    existing = EvaluationPrediction(
+        case_id="resume-first",
+        review_required=True,
+        latency_ms=100.0,
+    )
+    harness = object.__new__(LiveEvaluationHarness)
+    harness._config = EvaluationConfig(worker_count=2)
+    executed_case_ids: list[str] = []
+    snapshots: list[tuple[list[str], str]] = []
+
+    async def fake_run_case(
+        case: EvaluationCase,
+        run_id: str,
+    ) -> EvaluationPrediction:
+        """실제 Ollama 없이 새 Case 호출 여부를 기록한다."""
+        executed_case_ids.append(case.case_id)
+        assert run_id == "eval-resume-test"
+        return EvaluationPrediction(
+            case_id=case.case_id,
+            review_required=True,
+            latency_ms=200.0,
+        )
+
+    def record_progress(
+        predictions: list[EvaluationPrediction],
+        case_id: str,
+    ) -> None:
+        """체크포인트 콜백의 입력 순서와 마지막 완료 Case를 기록한다."""
+        snapshots.append(([item.case_id for item in predictions], case_id))
+
+    monkeypatch.setattr(harness, "_run_case", fake_run_case)
+
+    predictions = await harness.run_cases(
+        cases,
+        "eval-resume-test",
+        existing_predictions=[existing],
+        on_progress=record_progress,
+    )
+
+    assert executed_case_ids == ["resume-second"]
+    assert [item.case_id for item in predictions] == [
+        "resume-first",
+        "resume-second",
+    ]
+    assert snapshots == [
+        (["resume-first", "resume-second"], "resume-second")
+    ]
+
+
+def test_run_lock_rejects_same_run_id_until_owner_exits(tmp_path: Path) -> None:
+    """같은 실행 ID의 두 프로세스가 Checkpoint와 최종 결과를 덮어쓰지 못하게 한다."""
+    path = run_lock_path(tmp_path, "eval-lock-test")
+
+    with EvaluationRunLock(path):
+        with pytest.raises(EvaluationRunLockedError, match="이미 진행 중"):
+            with EvaluationRunLock(path):
+                pass
+
+    with EvaluationRunLock(path):
+        assert path.exists()
