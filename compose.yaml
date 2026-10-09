@@ -178,6 +178,48 @@ services:
         condition: service_healthy
     profiles: ["test"]
 
+  k6:
+    image: grafana/k6:1.8.1
+    environment:
+      BASE_URL: ${LOADTEST_BASE_URL:-http://api:8000}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-local_test_signing_secret}
+      REQUESTS: ${LOADTEST_REQUESTS:-20}
+      VUS: ${LOADTEST_VUS:-10}
+      RUN_ID: ${LOADTEST_RUN_ID:-}
+      MODE: ${LOADTEST_MODE:-duplicate}
+      SUMMARY_PATH: ${LOADTEST_SUMMARY_PATH:-/results/slack-webhook-summary.json}
+      K6_NO_USAGE_REPORT: "true"
+    command: ["run", "/scripts/slack-webhook.js"]
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./load-tests/k6:/scripts:ro
+      - ./load-tests/results:/results
+    profiles: ["loadtest"]
+    restart: "no"
+
+  load-observer:
+    build:
+      context: .
+    environment:
+      LOADTEST_QUEUE_MANAGEMENT_URL: http://rabbitmq:15672
+      LOADTEST_QUEUE_NAME: ${RABBITMQ_JOB_QUEUE:-rag_harness.jobs}
+      LOADTEST_QUEUE_USERNAME: ${RABBITMQ_USER:-rag_harness}
+      LOADTEST_QUEUE_PASSWORD: ${RABBITMQ_PASSWORD:-local_dev_password}
+      LOADTEST_QUEUE_INTERVAL_SECONDS: ${LOADTEST_QUEUE_INTERVAL_SECONDS:-1}
+      LOADTEST_QUEUE_MAX_SAMPLES: ${LOADTEST_QUEUE_MAX_SAMPLES:-900}
+      LOADTEST_QUEUE_STOP_WHEN_DRAINED: ${LOADTEST_QUEUE_STOP_WHEN_DRAINED:-true}
+      LOADTEST_QUEUE_OUTPUT_PATH: ${LOADTEST_QUEUE_OUTPUT_PATH:-/results/queue-timeline.jsonl}
+    command: ["python", "-m", "app.loadtest.observer"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./load-tests/results:/results
+    profiles: ["loadtest"]
+    restart: "no"
+
   prometheus:
     image: prom/prometheus:v3.14.0
     command:

@@ -1,6 +1,6 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 구현 범위는 로드맵 0단계부터 9단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신, 로컬 관측 환경과 고정 평가 하네스를 포함한다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 자동화·로컬 구현 범위는 로드맵 0단계부터 10단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신, 로컬 관측·평가·부하 테스트 하네스를 포함한다. 실제 Slack PC 앱 화면 캡처만 사용자 무료 Workspace 설정을 기다린다.
 
 ## 실행
 
@@ -109,6 +109,22 @@ docker compose run --rm api python -m app.evaluation.main run --run-id baseline-
 중단되면 같은 명령과 같은 `--run-id`를 다시 실행한다. 데이터셋 해시·설정·실행 환경·모델이 다르면 재개를 거부하고, 같은 실행 ID를 다른 프로세스가 사용 중이면 운영체제 파일 잠금으로 중복 실행을 차단한다. 최종 결과와 실행 중 Checkpoint는 `evaluation/results`에 생성되며 Git에 포함되지 않는다. Top-K, 유사도 임계값, 재작성 횟수, Worker 수는 기준 실행에서 한 조건씩만 바꿔 비교한다. 지표 정의와 비교 명령은 [평가 하네스 가이드](docs/EVALUATION.md)에 정리했다.
 
 WSL2 단일 Ollama CPU 환경의 실제 60건 비교에서는 Top-K 5, 최소 점수 `-1.0`, 검색어 재작성 1회, Worker 1개를 기본값으로 유지했다. Top-K 8은 Recall이 7%p 높았지만 p95와 실패 건수가 증가했고, 최소 점수 `0.2`는 모든 Case에서 검색 Chunk가 같았으며, 재작성을 끄면 Recall과 검토 전환 정확도가 낮아졌다. 이 결론은 현재 데이터셋과 실행 환경에만 적용한다.
+
+## 부하 테스트와 블로그 자료
+
+k6는 실제 Slack v0 HMAC 서명을 붙인 합성 `app_mention`을 보내 서명 검증, 작업·Outbox 트랜잭션, 멱등 처리와 ACK 지연을 측정한다. Queue 관측기는 RabbitMQ의 대기·처리 중 메시지를 JSONL로 남기고, Worker 중단 중 적체가 재시작 후 0으로 감소하면 자동 종료한다. k6와 관측기는 `loadtest` Profile에서만 실행되며 Grafana Cloud나 유료 서비스를 사용하지 않는다.
+
+```powershell
+docker compose --profile loadtest run --rm --no-deps `
+  -e MODE=duplicate -e REQUESTS=100 -e VUS=20 `
+  -e RUN_ID=ack-burst-v1 `
+  -e SUMMARY_PATH=/results/ack-burst-v1.json `
+  k6
+```
+
+2026-10-09 로컬 실측에서 같은 `event_id` 100건을 VU 20으로 보냈을 때 모두 성공했고 ACK p95는 455.72ms, 최대 538.44ms, 실패율은 0%였다. DB에는 작업 한 건만 생성됐다. 이는 LLM 답변 속도가 아니라 빠른 접수와 멱등성의 결과다.
+
+실행 순서, Queue 적체·복구 방법, 전체 구조와 네 가지 시퀀스, Grafana 캡처 목록은 [부하 테스트 가이드](docs/LOAD_TEST.md), 면접용 설명 흐름과 실제 평가 결과는 [블로그 초안](docs/BLOG_DRAFT.md)에 정리했다.
 
 ## 테스트
 
