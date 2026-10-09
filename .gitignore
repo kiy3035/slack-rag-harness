@@ -7,4 +7,6 @@ htmlcov/
 .venv/
 evaluation/results/*
 !evaluation/results/.gitkeep
+load-tests/results/*
+!load-tests/results/.gitkeep
 

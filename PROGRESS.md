@@ -1241,3 +1241,95 @@ git diff --check
 ### 다음 작업
 
 9단계 결과 PR 병합 후 10단계 k6 부하 테스트, Queue 적체·복구 측정, Grafana 캡처 목록과 블로그 초안 자료를 별도 브랜치와 PR로 구현한다.
+
+## 2026-10-09 — 10단계 부하 테스트와 블로그 자료 구현 완료
+
+### 현재 단계
+
+- 10단계 자동화·로컬 측정 완료
+- 실제 Slack PC 앱 정상 답변·검토 전환 화면: 사용자 무료 Workspace 설정 대기
+- 브랜치: `codex/stage-10-load-test`
+
+### 구현과 문서
+
+- `grafana/k6:1.8.1` 고정 이미지와 `loadtest` Compose Profile
+- 실제 Slack v0 HMAC 서명을 사용하는 `app_mention` 순간 요청 시나리오
+- 같은 `event_id` 중복 폭주와 고유 이벤트 모드 분리
+- 실패율, Check 성공률, ACK p95 3초와 3초 이내 ACK 비율 임계값
+- RabbitMQ 관리 API 응답을 Pydantic으로 검증해 Queue 변화를 JSONL로 기록하는 관측기
+- 적체를 실제로 본 뒤 Queue 합계가 0일 때만 `drained=true`로 종료하는 계약
+- 전체 구조도와 정상·재검색·사람 검토·장애 복구 시퀀스
+- Worker 수 비교 해석, Grafana·Slack 화면 캡처 목록, 한계와 개선 방향
+- `docs/LOAD_TEST.md`, `docs/BLOG_DRAFT.md`, README 갱신
+
+k6는 AGPL-3.0 무료 오픈소스 배포판을 로컬 Docker에서만 사용한다. Grafana Cloud, 유료 API와 관리형 부하 테스트 서비스는 사용하지 않으며 사용량 보고도 비활성화했다. 합성 채널·질문만 사용했고 Slack 실제 발신은 비활성화했다.
+
+### 실제 Webhook 측정
+
+환경은 WSL2 Linux x86_64, 논리 CPU 16개, Docker Compose, k6 1.8.1, Worker 1개, `qwen3:1.7b`, `nomic-embed-text`다. 모델이 준비된 Warm Run이며 첫 이미지 내려받기·API 재시작 스모크 값은 성능표에서 제외했다.
+
+| 실행 | 모드 | 요청/VU | 생성/중복 | 처리량 | ACK p95 | 최대 | 실패율 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `ack-burst-20261009` | 같은 `event_id` | 100/20 | 1/99 | 66.783 req/s | 455.72ms | 538.44ms | 0% |
+| `queue-recovery-20261009` | 고유 `event_id` | 5/5 | 5/0 | 165.635 req/s | 28.16ms | 28.28ms | 0% |
+
+두 실행 모두 Check와 3초 이내 ACK 비율 100%를 확인했다. 중복 100건은 DB에 작업 한 건만 생성됐다. 5건 실행의 요청 처리량은 표본이 작아 100건 실행과 직접 비교하지 않는다.
+
+### Queue 적체·처리 측정
+
+Worker 중단 중 고유 작업 5건을 접수했다. 직전 중복 실험의 실제 작업 한 건이 처리 중 중단으로 재전달돼 Queue 최대 합계는 6이었으며 이 선행 작업을 결과에서 숨기거나 보정하지 않았다.
+
+```text
+표본: 247건, 1초 간격
+최대 ready / unacknowledged / 합계: 6 / 1 / 6
+관측 시작부터 Queue 0까지: 247.451초
+고유 실험 작업 완료: 5/5
+고유 작업 End-to-End p95: 227,505.44ms
+고유 작업 최대 End-to-End: 236,618.78ms
+고유 작업 처리량: 0.021131 jobs/s
+```
+
+Webhook ACK p95 28.16ms와 End-to-End p95 약 227.5초의 차이로 접수 경계와 단일 CPU Ollama 처리 병목이 분리돼 있음을 확인했다.
+
+### Worker 중단 복구 측정
+
+선행 작업은 `grade_documents` 중 Worker를 멈춰 DB `PROCESSING`, `attempt_count=1`에 남았다. 실험에서만 Lease를 10초, 재시도 기준을 1초로 주입하자 Recovery Scheduler가 `WORKER_LEASE_EXPIRED`를 기록하고 두 번째 시도로 재선점했다. PostgreSQL Checkpoint에서 `grade_documents`부터 재개해 분류·검색을 반복하지 않고 `COMPLETED`가 됐다.
+
+복구 메시지가 Queue에 나타난 뒤 ACK돼 0이 되기까지 40.216초였고 최대 합계는 1이었다. 이후 Worker 환경은 `WORKFLOW_DOCUMENT_GRADER=ollama`, `WORKER_PROCESSING_LEASE_SECONDS=900`, `WORKER_RETRY_BASE_SECONDS=5`로 복원했다.
+
+### 자동 검증
+
+```text
+docker compose --profile test run --build --rm -e WORKFLOW_DOCUMENT_GRADER=ollama test
+결과: 106 passed in 4.40s
+
+docker compose --profile test run --rm -e WORKFLOW_DOCUMENT_GRADER=ollama test python -m compileall -q app tests migrations
+결과: 성공
+
+docker compose --profile test run --rm -e WORKFLOW_DOCUMENT_GRADER=ollama test python -m pip check
+결과: No broken requirements found.
+
+docker compose --profile loadtest config --quiet
+결과: 성공
+
+docker compose --profile loadtest run --build --rm -e LOADTEST_QUEUE_MAX_SAMPLES=1 -e LOADTEST_QUEUE_OUTPUT_PATH=/results/observer-final-smoke.jsonl load-observer
+결과: 실제 RabbitMQ 응답 검증·JSONL 저장 성공
+
+git diff --check
+결과: 성공
+```
+
+k6 스크립트는 실제 로컬 API에서 중복 10건 스모크, 중복 100건 Warm Run, 고유 5건 Queue Run으로 실행했다. 최종 콘솔 요약 출력도 기존 실행 ID의 중복 5건으로 다시 검증했다.
+
+### 측정 중 발견한 조건
+
+- 기존 로컬 `.env`의 폐기된 `WORKFLOW_DOCUMENT_GRADER=cloudflare_jev` 때문에 Compose가 API를 재생성한 첫 시도가 설정 검증에서 실패했다. 사용자 파일은 수정하지 않고 실행 프로세스에만 `ollama`를 주입했다.
+- Queue가 0이어도 Worker 중단 당시 DB Lease가 남은 작업은 `PROCESSING`일 수 있었다. Queue와 PostgreSQL 최종 상태를 함께 봐야 한다는 원칙을 실제로 확인했고, 짧은 테스트 Lease로 자동 복구까지 완료했다.
+- RabbitMQ `basic.get` 방식의 Worker라 관리 API `consumers`가 0으로 보일 수 있으므로 `ready`, `unacknowledged`와 DB 상태를 주된 판단 기준으로 사용한다.
+
+### 남은 제한 사항과 다음 작업
+
+- 실제 Slack PC 앱의 정상 Thread 답변과 사람 검토 전환 화면은 사용자 Workspace Token·Signing Secret 설정 뒤 직접 캡처해야 한다.
+- 로컬 `.env`의 `WORKFLOW_DOCUMENT_GRADER`를 `ollama` 또는 `jev`로 사용자가 정리하지 않으면 다음 Compose 재생성 때 설정 검증이 실패한다.
+- 모든 성능 결론은 WSL2 단일 로컬 Ollama CPU 환경에 한정한다.
+- 10단계 PR 병합 뒤 실제 Slack 화면 두 장을 캡처하면 로드맵의 수동 증빙까지 끝난다.
