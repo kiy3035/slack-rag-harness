@@ -108,6 +108,8 @@ docker compose run --rm api python -m app.evaluation.main run --run-id baseline-
 
 중단되면 같은 명령과 같은 `--run-id`를 다시 실행한다. 데이터셋 해시·설정·실행 환경·모델이 다르면 재개를 거부하고, 같은 실행 ID를 다른 프로세스가 사용 중이면 운영체제 파일 잠금으로 중복 실행을 차단한다. 최종 결과와 실행 중 Checkpoint는 `evaluation/results`에 생성되며 Git에 포함되지 않는다. Top-K, 유사도 임계값, 재작성 횟수, Worker 수는 기준 실행에서 한 조건씩만 바꿔 비교한다. 지표 정의와 비교 명령은 [평가 하네스 가이드](docs/EVALUATION.md)에 정리했다.
 
+WSL2 단일 Ollama CPU 환경의 실제 60건 비교에서는 Top-K 5, 최소 점수 `-1.0`, 검색어 재작성 1회, Worker 1개를 기본값으로 유지했다. Top-K 8은 Recall이 7%p 높았지만 p95와 실패 건수가 증가했고, 최소 점수 `0.2`는 모든 Case에서 검색 Chunk가 같았으며, 재작성을 끄면 Recall과 검토 전환 정확도가 낮아졌다. 이 결론은 현재 데이터셋과 실행 환경에만 적용한다.
+
 ## 테스트
 
 테스트는 실제 PostgreSQL과 RabbitMQ 컨테이너를 사용하며 Slack 연결이나 유료 API가 필요 없다.
