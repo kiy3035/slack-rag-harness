@@ -1,0 +1,252 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-10T00:00:00.000Z" agent="Codex architecture documentation" version="32.4.1" compressed="false">
+  <diagram id="06-로컬-검증" name="06 로컬 실행 검증">
+    <mxGraphModel dx="1800" dy="1220" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1220" math="0" shadow="0" background="#F8FAFC">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="v-2" value="&lt;div style=&quot;font-size:15px;font-weight:700;color:#0F172A&quot;&gt;사용자·개발자&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;align=left;verticalAlign=top;spacingLeft=16;spacingTop=14;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="115" width="230" height="945" as="geometry" />
+        </mxCell>
+        <mxCell id="v-3" value="&lt;div style=&quot;font-size:15px;font-weight:700;color:#0F172A&quot;&gt;Windows Host / Docker Desktop&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:3px&quot;&gt;docker compose · 고정 이미지 버전 · 로컬 전용 포트&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#93C5FD;strokeWidth=1.5;align=left;verticalAlign=top;spacingLeft=16;spacingTop=14;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="300" y="115" width="1460" height="620" as="geometry" />
+        </mxCell>
+        <mxCell id="v-4" value="&lt;div style=&quot;font-size:15px;font-weight:700;color:#0F172A&quot;&gt;개발자 호출형 로컬 검증 배치 (Cron 없음)&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#FDBA74;strokeWidth=1.5;align=left;verticalAlign=top;spacingLeft=16;spacingTop=14;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="300" y="850" width="1460" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="e-7" value="Slack Cloud + dev tunnel" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#2563EB;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="slackuser" target="api3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="245" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-8" value="Job + Outbox" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#15803D;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="api3" target="pg3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="470" y="335" />
+              <mxPoint x="1400" y="335" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-9" value="AMQP publish" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="outbox3" target="rabbit3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-10" value="delivery" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="rabbit3" target="worker3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-11" value="검색·결과·Checkpoint" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#15803D;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="worker3" target="pg3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-12" value="HTTP" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#111827;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="worker3" target="ollama3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1250" y="145" />
+              <mxPoint x="1670" y="145" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-13" value="localhost:3000" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="opsuser" target="grafana">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="635" />
+              <mxPoint x="1200" y="635" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-14" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="api3" target="telemetry3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-15" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="outbox3" target="telemetry3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-16" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="worker3" target="telemetry3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-17" value="metrics only" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="rabbit3" target="telemetry3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-18" value="scrape" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="telemetry3" target="prom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-19" value="app JSON logs only" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="telemetry3" target="alloy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-20" value="push" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="alloy" target="loki">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-21" value="PromQL" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="prom" target="grafana">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="465" y="630" />
+              <mxPoint x="1200" y="630" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-22" value="LogQL" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="loki" target="grafana">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-23" value="명시적 CLI" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#C2410C;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="opsuser" target="ingestbatch">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="835" />
+              <mxPoint x="500" y="835" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-24" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#C2410C;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="opsuser" target="evalbatch">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="835" />
+              <mxPoint x="895" y="835" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-25" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#C2410C;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="opsuser" target="loadbatch">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="835" />
+              <mxPoint x="1305" y="835" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-26" value="versioned chunks" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#15803D;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="ingestbatch" target="pg3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="500" y="795" />
+              <mxPoint x="1400" y="795" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-27" value="embedding" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#111827;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="ingestbatch" target="ollama3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="500" y="810" />
+              <mxPoint x="1690" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-28" value="read-only retrieval" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#15803D;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="evalbatch" target="pg3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="895" y="765" />
+              <mxPoint x="1400" y="765" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-29" value="LLM + embedding" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#111827;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="evalbatch" target="ollama3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="780" />
+              <mxPoint x="1690" y="780" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-30" value="signed webhook" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#C2410C;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="loadbatch" target="api3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1300" y="750" />
+              <mxPoint x="450" y="750" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-31" value="JSON/Markdown" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#15803D;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="evalbatch" target="results">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-32" value="JSON/JSONL" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#15803D;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="loadbatch" target="results">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="v-1" value="&lt;div style=&quot;font-size:26px;font-weight:700;color:#0F172A&quot;&gt;06. 로컬 실행·검증·관측 아키텍처&lt;/div&gt;&lt;div style=&quot;font-size:13px;color:#475569;margin-top:7px&quot;&gt;프로덕션 배포도가 아니라 Docker Compose 개발 환경과 적재·평가·부하 테스트의 실제 로컬 실행 구조&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="42" y="22" width="1716" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="slackuser" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#611F69;letter-spacing:0.4px&quot;&gt;USER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Slack PC/Web&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;app_mention · Thread 답변&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="65" y="180" width="180" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="opsuser" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#0F766E;letter-spacing:0.4px&quot;&gt;DEVELOPER / TESTER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;PowerShell / Browser&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Compose · CLI · Grafana&lt;br&gt;Review/Recovery API&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="65" y="480" width="180" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="v-5" value="&lt;div style=&quot;font-size:11px;color:#475569;line-height:1.45&quot;&gt;프로덕션 배포 이력 없음&lt;br&gt;Slack Cloud 외 실행·저장은 로컬 개발 환경&lt;/div&gt;" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#15803D;strokeWidth=1;dashed=1;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="65" y="890" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="api3" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#2563EB;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;api :8000&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;FastAPI · Slack/Event/Review API&lt;br&gt;/metrics · /health&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="335" y="190" width="200" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="outbox3" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#7C3AED;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;outbox-publisher :9102&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Job Outbox → RabbitMQ&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="565" y="190" width="200" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="rabbit3" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;RabbitMQ&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;AMQP :5672 · Metrics :15692&lt;br&gt;Compose named data volume 없음&lt;/div&gt;" style="shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F97316;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="795" y="195" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="worker3" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#0F766E;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;worker :9101&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Consumer · LangGraph · Recovery&lt;br&gt;Slack Reply Publisher (feature flag)&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1025" y="190" width="220" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="pg3" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;PostgreSQL + pgvector&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;영속 Job/문서/Checkpoint&lt;/div&gt;" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#336791;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="185" width="240" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="ollama3" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#111827;letter-spacing:0.4px&quot;&gt;HOST SERVICE&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Ollama :11434&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;qwen3:1.7b&lt;br&gt;nomic-embed-text&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1610" y="190" width="120" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="telemetry3" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;Telemetry Sources (논리 그룹)&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;앱 metrics/JSON logs · RabbitMQ metrics&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="355" width="500" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="prom" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#E6522C;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Prometheus&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;5초 scrape · 7일 보존&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="485" width="210" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="alloy" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#7C3AED;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Grafana Alloy&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;공유 app-logs JSON tail&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="610" y="485" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="loki" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#7C3AED;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Loki&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;구조화 로그 저장·LogQL&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="850" y="485" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="grafana" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#F46800;letter-spacing:0.4px&quot;&gt;CONTAINER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Grafana :3000&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Prometheus + Loki datasource&lt;br&gt;Provisioned dashboard&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="485" width="220" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="volumes" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;Compose Named Volumes&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;postgres-data · prometheus-data · loki-data&lt;br&gt;grafana-data · alloy-data · app-logs&lt;/div&gt;" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="470" width="330" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="v-6" value="&lt;div style=&quot;font-size:11px;color:#475569;line-height:1.45&quot;&gt;Recovery Scheduler는 별도 Cron 컨테이너가 아니라 Worker 루프 내부에서 주기적으로 poll한다.&lt;/div&gt;" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=1;dashed=1;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="620" y="650" width="810" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ingestbatch" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#336791;letter-spacing:0.4px&quot;&gt;CLI BATCH&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Knowledge Ingest&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Markdown load → heading chunk&lt;br&gt;Ollama embedding → 문서 버전 원자 교체&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="350" y="900" width="300" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="evalbatch" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#0F766E;letter-spacing:0.4px&quot;&gt;CLI BATCH&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Evaluation (60 cases)&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;실제 pgvector + Ollama · InMemorySaver&lt;br&gt;파일 Lock · Case별 atomic Checkpoint · JSON/MD&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="730" y="900" width="330" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="loadbatch" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#C2410C;letter-spacing:0.4px&quot;&gt;COMPOSE PROFILE&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;k6 + Load Observer&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;서명된 합성 app_mention · ACK p95&lt;br&gt;Rabbit Queue 1초 관측 · JSONL&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="900" width="330" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="results" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#15803D;letter-spacing:0.4px&quot;&gt;LOCAL FILES&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Evaluation / Load Results&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Git 제외 결과 · 실행 환경/모델/설정 기록&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1510" y="900" width="210" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="v-33" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#475569&quot;&gt;범례&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="48" y="1145" width="54" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-34" value="" style="shape=line;strokeColor=#2563EB;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="110" y="1156" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-35" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;Runtime 호출&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="162" y="1145" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-36" value="" style="shape=line;strokeColor=#7C3AED;strokeWidth=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="1156" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-37" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;비동기/관측&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="372" y="1145" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-38" value="" style="shape=line;strokeColor=#15803D;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="530" y="1156" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-39" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;로컬 데이터&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="582" y="1145" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-40" value="" style="shape=line;strokeColor=#C2410C;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="740" y="1156" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-41" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;개발자 실행 배치&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="792" y="1145" width="150" height="28" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

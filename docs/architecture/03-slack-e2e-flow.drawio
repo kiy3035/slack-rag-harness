@@ -1,0 +1,167 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-10T00:00:00.000Z" agent="Codex architecture documentation" version="32.4.1" compressed="false">
+  <diagram id="03-slack-e2e" name="03 Slack E2E">
+    <mxGraphModel dx="1800" dy="1060" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1060" math="0" shadow="0" background="#F8FAFC">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="v-2" value="&lt;div style=&quot;font-size:15px;font-weight:700;color:#0F172A&quot;&gt;동기 접수 경로&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:3px&quot;&gt;Slack 재전송을 막기 위해 AI 호출 전에 빠르게 종료&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#93C5FD;strokeWidth=1.5;align=left;verticalAlign=top;spacingLeft=16;spacingTop=14;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="115" width="1720" height="265" as="geometry" />
+        </mxCell>
+        <mxCell id="v-3" value="&lt;div style=&quot;font-size:15px;font-weight:700;color:#0F172A&quot;&gt;비동기 처리 경로&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:3px&quot;&gt;Outbox + RabbitMQ + Worker · 최소 한 번 전달을 멱등 상태 전이로 흡수&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#C4B5FD;strokeWidth=1.5;align=left;verticalAlign=top;spacingLeft=16;spacingTop=14;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="410" width="1720" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="v-4" value="&lt;div style=&quot;font-size:15px;font-weight:700;color:#0F172A&quot;&gt;응답·관측&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#86EFAC;strokeWidth=1.5;align=left;verticalAlign=top;spacingLeft=16;spacingTop=14;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="800" width="1720" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="e-7" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#2563EB;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-8" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#2563EB;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-9" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#2563EB;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s3" target="s4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-10" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#2563EB;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s4" target="s5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-11" value="READY" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s4" target="s6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="920" y="355" />
+              <mxPoint x="180" y="355" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-12" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s6" target="s7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-13" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s7" target="s8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-14" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#0F766E;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s8" target="s9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-15" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#0F766E;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s9" target="s10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-16" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s10" target="s11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-17" value="" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s11" target="s12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-18" value="Review Required" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#B45309;strokeWidth=2;dashed=0;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s10" target="human">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1180" y="760" />
+              <mxPoint x="1570" y="760" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-19" value="request metric" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s3" target="metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="650" y="390" />
+              <mxPoint x="290" y="790" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-20" value="node log" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s9" target="logs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-21" value="PromQL" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="metrics" target="dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-22" value="LogQL" style="edgeStyle=orthogonalEdgeStyle;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;strokeColor=#7C3AED;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;fontColor=#475569;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="logs" target="dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="v-1" value="&lt;div style=&quot;font-size:26px;font-weight:700;color:#0F172A&quot;&gt;03. Slack 질문 → Thread 답변 E2E&lt;/div&gt;&lt;div style=&quot;font-size:13px;color:#475569;margin-top:7px&quot;&gt;3초 안의 ACK 경계와 수 분이 걸릴 수 있는 AI 실행을 분리하고, 중복·중단에도 결과를 보존하는 흐름&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="42" y="22" width="1716" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#611F69;letter-spacing:0.4px&quot;&gt;1 · SLACK&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;사용자 app_mention&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;event_id · channel · event.ts&lt;br&gt;질문 원문&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="190" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#C2410C;letter-spacing:0.4px&quot;&gt;2 · HTTPS&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Cloudflare Tunnel&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;개발용 공개 URL → localhost:8000&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=1;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="310" y="190" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#2563EB;letter-spacing:0.4px&quot;&gt;3 · FASTAPI&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;서명·이벤트 검증&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Raw body HMAC + Timestamp&lt;br&gt;Bot/subtype/빈 질문 제외&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="190" width="215" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#15803D;letter-spacing:0.4px&quot;&gt;4 · T1&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;멱등 Job 접수&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;UNIQUE(source,event_id)&lt;br&gt;Job + Job Outbox 원자 저장&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="805" y="190" width="220" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#2563EB;letter-spacing:0.4px&quot;&gt;5 · ACK&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;즉시 2xx 반환&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;LLM·Embedding·Slack 발신 없음&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1065" y="190" width="200" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="v-5" value="&lt;div style=&quot;font-size:11px;color:#475569;line-height:1.45&quot;&gt;중복 event_id는 새 Job을 만들지 않고 기존 job_id를 반환한다.&lt;/div&gt;" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#15803D;strokeWidth=1;dashed=1;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="198" width="380" height="98" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#7C3AED;letter-spacing:0.4px&quot;&gt;6 · OUTBOX&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Job 발행&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;SKIP LOCKED 임대 선점&lt;br&gt;Confirm 뒤 SENT/QUEUED&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="505" width="205" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="s7" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#F97316;letter-spacing:0.4px&quot;&gt;7 · RABBITMQ&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;durable delivery&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Job Queue · prefetch=1&lt;br&gt;최소 한 번 전달&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="505" width="195" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="s8" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#15803D;letter-spacing:0.4px&quot;&gt;8 · WORKER&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;멱등 Job 선점&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;상태 조건부 UPDATE&lt;br&gt;중복 delivery는 실행하지 않고 ACK&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="570" y="505" width="205" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="s9" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#0F766E;letter-spacing:0.4px&quot;&gt;9 · LANGGRAPH&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;RAG 실행&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Ollama + pgvector&lt;br&gt;노드 Checkpoint·한도 있는 재시도&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="505" width="205" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="s10" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#15803D;letter-spacing:0.4px&quot;&gt;10 · T4&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;결과 원자 확정&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;Completed + Citation + Reply Outbox&lt;br&gt;또는 Review Required&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="505" width="215" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="s11" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#611F69;letter-spacing:0.4px&quot;&gt;11 · REPLY OUTBOX · FLAG&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;Slack 답변 발행&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;SLACK_REPLY_ENABLED=true&lt;br&gt;thread_ts · client_msg_id · Backoff&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="505" width="230" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="s12" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#611F69;letter-spacing:0.4px&quot;&gt;12 · SLACK THREAD&lt;/div&gt;&lt;div style=&quot;font-size:16px;font-weight:700;color:#0F172A;margin-top:4px&quot;&gt;사용자에게 답변&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#475569;line-height:1.45;margin-top:6px&quot;&gt;원본 메시지와 같은 Thread&lt;/div&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;dashed=0;align=left;verticalAlign=middle;spacingLeft=16;spacingRight=12;spacingTop=8;fontColor=#0F172A;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1595" y="505" width="135" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="v-6" value="&lt;div style=&quot;font-size:11px;color:#475569;line-height:1.45&quot;&gt;실패 시 ACK 전에 무작정 재실행하지 않는다. 오류를 DB에 저장해 RETRY_WAIT / REVIEW_REQUIRED / DEAD_LETTER로 분류한 뒤 ACK한다.&lt;/div&gt;" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#B91C1C;strokeWidth=1;dashed=1;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="420" y="665" width="850" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="metrics" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;Prometheus Metrics&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;ACK 지연 · Queue · Workflow · Retry&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="120" y="835" width="350" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="logs" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;JSON Logs → Alloy → Loki&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;request_id · job_id · thread_id · node duration&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="530" y="835" width="420" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="dashboard" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;Grafana&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;지표와 로그를 한 화면에서 상관 분석&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="835" width="350" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="human" value="&lt;div style=&quot;font-size:14px;font-weight:700;color:#0F172A&quot;&gt;Review Queue&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#475569;margin-top:4px;line-height:1.35&quot;&gt;근거 부족 · 민감 작업 · 문서 충돌은 사람 결정&lt;/div&gt;" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#B45309;strokeWidth=1.5;align=center;verticalAlign=middle;fontColor=#0F172A;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="835" width="300" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="v-23" value="&lt;div style=&quot;font-size:11px;font-weight:700;color:#475569&quot;&gt;범례&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="48" y="985" width="54" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-24" value="" style="shape=line;strokeColor=#2563EB;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="110" y="996" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-25" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;동기 요청/검증&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="162" y="985" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-26" value="" style="shape=line;strokeColor=#7C3AED;strokeWidth=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="996" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-27" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;비동기 경계&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="372" y="985" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-28" value="" style="shape=line;strokeColor=#0F766E;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="530" y="996" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-29" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;RAG 내부 실행&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="582" y="985" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="v-30" value="" style="shape=line;strokeColor=#B45309;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="740" y="996" width="46" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="v-31" value="&lt;div style=&quot;font-size:11px;color:#475569&quot;&gt;사람 검토/예외&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="792" y="985" width="150" height="28" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
