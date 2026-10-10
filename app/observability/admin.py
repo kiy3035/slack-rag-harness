@@ -1,13 +1,17 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from html import escape
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.domain import EventSource, JobStatus, ReviewStatus
 from app.db.models import AiJob, ReviewQueue
+
+
+KOREA_TIMEZONE = ZoneInfo("Asia/Seoul")
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +111,12 @@ def _status_cards(overview: AdminOverview) -> str:
     return "".join(cards)
 
 
+def _format_korea_time(value: datetime) -> str:
+    """UTC 저장 시각을 관리 화면에서 식별하기 쉬운 한국 표준시로 변환한다."""
+    aware_value = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return aware_value.astimezone(KOREA_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
 def _job_rows(overview: AdminOverview) -> str:
     """최근 작업을 민감 본문 없이 표 행으로 렌더링한다."""
     return "".join(
@@ -116,7 +126,7 @@ def _job_rows(overview: AdminOverview) -> str:
         f"<td><span class='badge'>{escape(row.status.value)}</span></td>"
         f"<td>{row.attempt_count}</td>"
         f"<td>{escape(row.failure_code or '-')}</td>"
-        f"<td>{escape(row.created_at.isoformat())}</td>"
+        f"<td>{escape(_format_korea_time(row.created_at))}</td>"
         "</tr>"
         for row in overview.jobs
     ) or "<tr><td colspan='6'>작업이 없습니다.</td></tr>"
@@ -130,7 +140,7 @@ def _review_rows(overview: AdminOverview) -> str:
         f"<td><code>{escape(str(row.job_id))}</code></td>"
         f"<td><span class='badge'>{escape(row.status.value)}</span></td>"
         f"<td>{escape(row.reason_code)}</td>"
-        f"<td>{escape(row.created_at.isoformat())}</td>"
+        f"<td>{escape(_format_korea_time(row.created_at))}</td>"
         "</tr>"
         for row in overview.reviews
     ) or "<tr><td colspan='5'>검토가 없습니다.</td></tr>"
@@ -166,11 +176,11 @@ def render_admin_page(overview: AdminOverview) -> str:
 </head>
 <body>
   <header>
-    <div><h1>Slack RAG Harness</h1><p>질문·답변 본문을 노출하지 않는 로컬 운영 화면 · 10초 자동 새로고침</p></div>
+    <div><h1>Slack RAG Harness</h1><p>질문·답변 본문을 노출하지 않는 로컬 운영 화면 · 한국 표준시(KST, UTC+9) · 10초 자동 새로고침</p></div>
     <nav><a href="/metrics">Prometheus Metrics</a> · <a href="http://localhost:3000/d/slack-rag-harness">Grafana</a></nav>
   </header>
   <div class="cards">{_status_cards(overview)}</div>
-  <section><h2>최근 작업</h2><table><thead><tr><th>job_id</th><th>source</th><th>status</th><th>attempts</th><th>failure_code</th><th>created_at</th></tr></thead><tbody>{_job_rows(overview)}</tbody></table></section>
-  <section><h2>최근 검토</h2><table><thead><tr><th>review_id</th><th>job_id</th><th>status</th><th>reason_code</th><th>created_at</th></tr></thead><tbody>{_review_rows(overview)}</tbody></table></section>
+  <section><h2>최근 작업</h2><table><thead><tr><th>job_id</th><th>source</th><th>status</th><th>attempts</th><th>failure_code</th><th>created_at (KST)</th></tr></thead><tbody>{_job_rows(overview)}</tbody></table></section>
+  <section><h2>최근 검토</h2><table><thead><tr><th>review_id</th><th>job_id</th><th>status</th><th>reason_code</th><th>created_at (KST)</th></tr></thead><tbody>{_review_rows(overview)}</tbody></table></section>
 </body>
 </html>"""

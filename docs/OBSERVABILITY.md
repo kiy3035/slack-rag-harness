@@ -44,6 +44,8 @@ Grafana에 로그인하면 `Slack RAG Harness 관측` Dashboard가 자동으로 
 
 작업과 검토 Gauge는 `/metrics`를 읽을 때 PostgreSQL을 집계한다. 값이 없다는 이유로 업무 상태를 변경하거나 추정하지 않는다.
 
+대시보드 시간대는 `Asia/Seoul`로 고정한다. 최소 관리 화면도 DB의 UTC 저장 시각을 `YYYY-MM-DD HH:MM:SS KST`로 변환해 표시한다. DB, API 응답, 구조화 로그, 재시도·Lease 계산은 비교 가능성과 복구 정합성을 위해 timezone-aware UTC를 유지한다.
+
 ## 4. 로그 검색과 개인정보 경계
 
 API, Worker, Outbox Publisher 로그는 JSON 한 줄 형식으로 Loki에 전달된다. Grafana Explore에서 다음처럼 조회한다.
