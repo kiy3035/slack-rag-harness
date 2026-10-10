@@ -107,7 +107,7 @@
   "tags": ["slack-rag-harness", "local"],
   "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
-  "timezone": "browser",
+  "timezone": "Asia/Seoul",
   "title": "Slack RAG Harness 관측",
   "uid": "slack-rag-harness",
   "version": 1

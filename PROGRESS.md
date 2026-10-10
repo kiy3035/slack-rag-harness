@@ -1388,3 +1388,35 @@ docker compose --profile test run --build --rm -e WORKFLOW_DOCUMENT_GRADER=ollam
 git diff --check
 결과: 성공
 ```
+
+## 2026-10-10 — 관측 화면 한국 표준시 표시
+
+### 변경 사항
+
+- PostgreSQL·API·구조화 로그·재시도 및 Lease 계산은 timezone-aware UTC 유지
+- 최소 관리 화면의 작업·검토 생성 시각을 `Asia/Seoul` 기준 `YYYY-MM-DD HH:MM:SS KST`로 표시
+- 관리 화면 상단과 시간 열 이름에 KST·UTC+9 기준 명시
+- Grafana Provisioning Dashboard 시간대를 `Asia/Seoul`로 고정
+- 고정 UTC 입력이 정확히 9시간 뒤의 KST로 표시되는 통합 테스트 추가
+
+### 검증
+
+```text
+docker compose config --quiet
+결과: 성공
+
+docker compose --profile test run --build --rm -e WORKFLOW_DOCUMENT_GRADER=ollama test pytest -q tests/integration/test_stage8_observability.py
+결과: 3 passed in 0.79s
+
+docker compose --profile test run --rm -e WORKFLOW_DOCUMENT_GRADER=ollama test
+결과: 106 passed in 5.46s
+
+Grafana Dashboard JSON 파싱 및 timezone 확인
+결과: Asia/Seoul
+
+로컬 API·Grafana 재생성 후 실제 화면 확인
+결과: `/admin` 200, 기존 UTC 11:38 작업·검토가 각각 20:38 KST로 표시되고 UTC 원문은 숨김, API healthy
+
+git diff --check
+결과: 성공
+```

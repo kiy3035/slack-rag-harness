@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -51,6 +52,7 @@ async def seed_observability_rows(engine: AsyncEngine) -> tuple[str, str]:
                 status=JobStatus.REVIEW_REQUIRED,
                 attempt_count=2,
                 workflow_revision=0,
+                created_at=datetime(2026, 10, 10, 11, 38, 17, tzinfo=UTC),
             )
         )
         session.add(
@@ -63,6 +65,7 @@ async def seed_observability_rows(engine: AsyncEngine) -> tuple[str, str]:
                 draft_citations=[],
                 allowed_citations=[],
                 status=ReviewStatus.WAITING,
+                created_at=datetime(2026, 10, 10, 11, 38, 25, tzinfo=UTC),
             )
         )
     return str(job_id), str(review_id)
@@ -103,6 +106,11 @@ async def test_admin_page_shows_safe_operational_fields_only(
     assert review_id in response.text
     assert "REVIEW_REQUIRED" in response.text
     assert "INSUFFICIENT_EVIDENCE" in response.text
+    assert "한국 표준시(KST, UTC+9)" in response.text
+    assert "created_at (KST)" in response.text
+    assert "2026-10-10 20:38:17 KST" in response.text
+    assert "2026-10-10 20:38:25 KST" in response.text
+    assert "2026-10-10T11:38" not in response.text
     assert "절대 노출하면 안 되는 질문" not in response.text
     assert "절대 노출하면 안 되는 초안" not in response.text
 
