@@ -26,7 +26,7 @@
 
 ## 3. 로컬 환경변수
 
-`.env.example`을 `.env`로 복사한 뒤 아래 값만 로컬에서 설정한다.
+Git에서 제외된 프로젝트 루트의 로컬 `.env`에 아래 값을 설정한다.
 
 ```dotenv
 SLACK_REPLY_ENABLED=true

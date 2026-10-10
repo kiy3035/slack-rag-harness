@@ -11,7 +11,7 @@ ollama pull nomic-embed-text
 docker compose up --build -d postgres rabbitmq api outbox-publisher
 ```
 
-컨테이너에서 호스트 Ollama를 호출할 때 기본 주소는 `http://host.docker.internal:11434`다. 호스트에서 명령을 직접 실행할 때는 `.env.example`처럼 `http://localhost:11434`를 사용한다. `EMBEDDING_DIMENSIONS=768`은 Migration의 `vector(768)`과 묶인 값이므로 다른 차원 모델로 바꾸려면 새 Migration이 필요하다.
+컨테이너에서 호스트 Ollama를 호출할 때 기본 주소는 `http://host.docker.internal:11434`다. 호스트에서 명령을 직접 실행할 때는 로컬 `.env`에 `OLLAMA_BASE_URL=http://localhost:11434`를 설정한다. `EMBEDDING_DIMENSIONS=768`은 Migration의 `vector(768)`과 묶인 값이므로 다른 차원 모델로 바꾸려면 새 Migration이 필요하다.
 
 `nomic-embed-text`의 검색 계약에 맞춰 문서에는 `search_document:`, 질문에는 `search_query:`를 자동으로 붙인다. 이 접두어는 사용자가 입력하지 않는다.
 
