@@ -21,7 +21,7 @@ Docker Desktop과 Docker Compose가 필요하다. 호스트 Python은 필요하�
 직접 의존성은 `pyproject.toml`, 해석된 전체 의존성은 `requirements.lock`에 고정돼 있다.
 
 ```powershell
-Copy-Item .env.example .env
+# 프로젝트 루트의 로컬 전용 .env에 필요한 값을 설정한다.
 docker compose up --build -d
 docker compose ps
 Invoke-RestMethod http://localhost:8000/health/ready
@@ -157,7 +157,7 @@ docker compose exec rabbitmq rabbitmq-diagnostics -q ping
 ## 보안 설정
 
 - `.env`는 Git에서 제외된다.
-- `.env.example`의 값은 로컬 예시이며 실제 Slack Secret이 아니다.
+- 실제 환경변수와 Secret은 Git에서 제외된 로컬 `.env`로만 관리한다.
 - Slack 서명은 JSON 파싱 전에 원본 요청 바이트로 검증한다.
 - Timestamp 허용 범위 기본값은 300초다.
 - Bot Token은 Slack Web API의 Authorization Header로만 전달하고 로그에 남기지 않는다.

@@ -1358,3 +1358,33 @@ k6 스크립트는 실제 로컬 API에서 중복 10건 스모크, 중복 100건
 - 질문 3~5건 처리 직후 Grafana 대시보드 캡처
 
 수동 화면 증빙 외 구현·자동 검증·아키텍처와 포트폴리오 설명 문서 작성은 완료했다.
+
+## 2026-10-10 — 로컬 환경 예시 제거와 Git 민감정보 점검
+
+### 변경 사항
+
+- 다른 사용자의 재현을 전제로 한 `.env.example`을 저장소에서 제거
+- 실행·관측·검색·Slack 설정 문서를 Git에서 제외된 로컬 `.env` 기준으로 정리
+- 점검 범위와 결과를 `docs/SECURITY_AUDIT.md`에 기록
+
+### Git 점검 결과
+
+- 원격 참조를 갱신하고 33개 커밋, Reflog가 가리키는 커밋, 도달 불가능 Blob, 현재 작업 트리를 검사
+- Slack·GitHub·OpenAI·Vercel Token, Slack Signing Secret, Private Key, 실제 Cloudflare Quick Tunnel 주소는 발견되지 않음
+- 실제 `.env`는 전체 이력에서 추적된 적이 없고 현재도 `.gitignore` 적용 확인
+- SVG의 AWS·Google Key 형식 일치는 내장 PNG Base64 데이터의 오탐으로 확인
+- 과거 커밋 19개에 GitHub 비공개 주소가 아닌 작성자 이메일 메타데이터가 남아 있음. 인증 Secret은 아니며, 제거에는 이력 재작성과 강제 Push가 필요하므로 변경하지 않음
+- 전용 Secret Scanner가 설치되어 있지 않아 알려진 키 형식과 저장소 실제 이력을 직접 검사한 결과임
+
+### 자동 검증
+
+```text
+docker compose config --quiet
+결과: 성공
+
+docker compose --profile test run --build --rm -e WORKFLOW_DOCUMENT_GRADER=ollama test
+결과: 106 passed in 5.38s
+
+git diff --check
+결과: 성공
+```

@@ -9,7 +9,7 @@
 ## 2. 실행
 
 ```powershell
-Copy-Item .env.example .env
+# 프로젝트 루트의 로컬 전용 .env에 필요한 값을 설정한다.
 docker compose up --build -d
 docker compose ps
 ```
@@ -27,7 +27,7 @@ docker compose ps
 
 관측 UI와 메트릭 포트는 Compose에서 `127.0.0.1`에만 바인딩한다. 다른 장치에서 접근해야 한다면 인증과 방화벽 정책을 먼저 구성한 뒤 바인딩을 의도적으로 변경한다.
 
-Grafana의 로컬 기본 계정은 `.env.example`의 `admin` / `local_dev_password`다. 이 값은 개발 예시일 뿐이며 외부 접근이 가능한 환경에서는 반드시 변경하고 별도 인증과 네트워크 접근 통제를 추가한다.
+Grafana의 Compose fallback 계정은 `admin` / `local_dev_password`다. 로컬 `.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`로 덮어쓸 수 있으며, 외부 접근이 가능한 환경에서는 반드시 변경하고 별도 인증과 네트워크 접근 통제를 추가한다.
 
 ## 3. Dashboard
 
