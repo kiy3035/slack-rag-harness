@@ -1,6 +1,18 @@
 # Slack RAG Harness
 
-무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 자동화·로컬 구현 범위는 로드맵 0단계부터 10단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신, 로컬 관측·평가·부하 테스트 하네스를 포함한다. 실제 Slack PC 앱 화면 캡처만 사용자 무료 Workspace 설정을 기다린다.
+무료·로컬 실행을 우선하는 비동기 AI 하네스다. 현재 자동화·로컬 구현 범위는 로드맵 0단계부터 10단계까지이며, 관련성 판정·제한 재검색·출력 검증, 멱등적인 사람 검토, Worker 장애 복구, 실제 Slack Thread 발신, 로컬 관측·평가·부하 테스트 하네스를 포함한다. 무료 Slack Workspace에서 `app_mention` 수신과 동일 Thread 답변까지 실제로 확인했으며, 공개용 익명화 화면과 사람 검토 전환 화면만 수동 증빙으로 남아 있다.
+
+![전체 시스템 아키텍처](docs/architecture/01-system-overview.svg)
+
+## 검증 요약
+
+- Docker 기반 회귀 테스트 106건 통과
+- 실제 Slack `app_mention` 수신과 동일 Thread 답변 확인
+- 동일 `event_id` 100건을 작업 1건으로 멱등 처리, Webhook 실패율 0%, ACK p95 455.72ms
+- Worker 중단 중 Queue 적체 후 고유 작업 5/5 완료 및 Checkpoint 재개 확인
+- 60건 고정 평가 데이터셋으로 Top-K, 최소 검색 점수, 검색어 재작성, Worker 수를 한 조건씩 비교
+
+수치는 WSL2 단일 로컬 Ollama CPU 환경의 측정값이며 프로덕션 운영 성능을 의미하지 않는다. 포트폴리오용 설명과 증빙 상태는 [포트폴리오 정리 문서](docs/PORTFOLIO.md), 전체 구조는 [아키텍처 문서](docs/architecture/README.md)에서 확인할 수 있다.
 
 ## 실행
 

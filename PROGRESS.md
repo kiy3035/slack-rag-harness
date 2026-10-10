@@ -1333,3 +1333,28 @@ k6 스크립트는 실제 로컬 API에서 중복 10건 스모크, 중복 100건
 - 로컬 `.env`의 `WORKFLOW_DOCUMENT_GRADER`를 `ollama` 또는 `jev`로 사용자가 정리하지 않으면 다음 Compose 재생성 때 설정 검증이 실패한다.
 - 모든 성능 결론은 WSL2 단일 로컬 Ollama CPU 환경에 한정한다.
 - 10단계 PR 병합 뒤 실제 Slack 화면 두 장을 캡처하면 로드맵의 수동 증빙까지 끝난다.
+
+## 2026-10-10 — 아키텍처·포트폴리오 문서와 실제 Slack 정상 E2E 정리
+
+### 확인한 실제 흐름
+
+- 무료 Slack Workspace에서 Events API Request URL 검증 완료
+- 공개 테스트 채널에서 `app_mention` 수신 완료
+- 로컬 API → Outbox → RabbitMQ → Worker → Ollama RAG 처리 완료
+- 원본 Slack 메시지와 동일 Thread에 정상 답변 발신 완료
+- 정상 질문으로 `정산 배치는 매일 몇 시에 결제 원장을 집계하나요?`를 사용했고 `22시` 답변을 확인
+
+### 문서 산출물
+
+- 전체 시스템, 내부 애플리케이션, Slack E2E, RAG Workflow, 비동기 복구, 로컬 실행·검증·관측 아키텍처 작성
+- 여섯 다이어그램을 편집 가능한 draw.io XML과 SVG·PNG로 렌더링
+- 실제 구현과의 연결 관계, 트랜잭션 경계, 동기·비동기 흐름과 프로덕션 운영이 아닌 로컬 검증 범위를 명시
+- 포트폴리오 설명, 실제 측정 근거, 데모 순서와 캡처 기준을 `docs/PORTFOLIO.md`에 정리
+
+### 남은 수동 증빙
+
+- 사용자·Workspace 정보와 Tunnel 주소를 제거한 Slack 정상 Thread 공개용 캡처
+- 문서에 없는 질문이 `REVIEW_REQUIRED`로 전환되는 실제 Slack·검토 화면
+- 질문 3~5건 처리 직후 Grafana 대시보드 캡처
+
+수동 화면 증빙 외 구현·자동 검증·아키텍처와 포트폴리오 설명 문서 작성은 완료했다.
